@@ -1,0 +1,26 @@
+// $Id: InstantiateTemplates.icc,v 1.1 2013/02/04 13:23:08 lpernie Exp $
+#include "Analysis/Pi0Calib/interface/EcalCalibMap.h"
+#include "Analysis/Pi0Calib/interface/EcalCalibTypes.h"
+#include "Analysis/Pi0Calib/interface/EcalCalibAlgo.h"
+
+template<class Type>
+float EcalCalibMap<Type>::map[Type::nRegions];
+
+
+EcalCalibMap<EcalCalibType::Xtal> xtalmap;
+EcalCalibMap<EcalCalibType::EtaRing> etamap;
+EcalCalibMap<EcalCalibType::TrigTower> TTmap;
+
+//template<class Type,int NMaxIter>
+//const int EcalCalibAlgo<Type,NMaxIter>::MaxEnergyBins;
+
+//template<class Type,int NMaxIter>
+//float EcalCalibAlgo<Type,NMaxIter>::lowEnergyEdge[EcalCalibAlgo<Type,NMaxIter>::MaxEnergyBins+1];
+
+
+#include "PhysicsTools/FWLite/interface/EventContainer.h"
+#include "PhysicsTools/FWLite/interface/CommandLineParser.h"
+//optutl::CommandLineParser tparser("test");
+//fwlite::EventContainer tcontainer( tparser );
+//EcalCalibAlgo<EcalCalibType::Xtal> XtalCalibAlgo( fwlite::EventContainer( optutl::CommandLineParser("test") ) );
+//EcalCalibAlgo<EcalCalibType::Xtal> XtalCalibAlgo( &tcontainer  );

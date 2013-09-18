@@ -1,0 +1,1172 @@
+// May 2010
+
+// CMS includes
+#include "FWCore/Utilities/interface/InputTag.h"
+#include "DataFormats/Common/interface/Handle.h"
+#include "FWCore/Framework/interface/ESHandle.h"
+
+// Root includes
+#include "TROOT.h"
+#include "TH1F.h"
+#include "TH2F.h"
+
+#include<iostream>
+#include<vector>
+#include<map>
+
+#include "RecoCaloTools/Navigation/interface/EcalPreshowerNavigator.h"
+#include "Geometry/CaloGeometry/interface/CaloSubdetectorGeometry.h"
+#include "Geometry/CaloGeometry/interface/CaloGeometry.h"
+#include "Geometry/EcalAlgo/interface/EcalPreshowerHardcodedGeometry.h"
+#include "DataFormats/EcalRecHit/interface/EcalRecHitCollections.h"
+#include "DataFormats/EcalDetId/interface/EBDetId.h"
+#include "DataFormats/EcalDetId/interface/EEDetId.h" 
+#include "DataFormats/EcalDetId/interface/ESDetId.h"
+#include "DataFormats/CaloRecHit/interface/CaloID.h"
+#include "DataFormats/Math/interface/LorentzVector.h"
+
+#include "Analysis/Pi0Calib/interface/EcalRecHitCompare.h"
+#include "Analysis/Pi0Calib/interface/GlobalFunctions.h"
+
+using namespace std;
+using namespace reco;
+
+//==============================================
+ template<class Type,int NMaxIter>
+ void EcalCalibAlgo<Type,NMaxIter>::iterate(){
+//==============================================
+  
+   int nIter = parser->integerValue("iterations");
+   if(nIter>NMaxIter) {
+     cout << "WARNING: " << nIter << " > NMaxIter=" << NMaxIter
+          << ". calibration will stop after " << NMaxIter << "iterations"
+          << "\n    Instanciate a calib object with higher limit"
+          << endl;
+   }
+   // iterate
+   for(int it=0; it<NMaxIter && it<nIter; ++it) {
+     resetParams();
+
+     analyze(it);
+
+     // compute average weight, eps, and update calib constant
+     for(uint32_t j=0; j<Type::nRegions; ++j)  {
+       eps[j] = (Denom[j]<=0.) ? 0. : Numer[j]/Denom[j];
+       tmpcalib[j] *= (entries[j][it]==0.) ? 1. : 1./(1.+eps[j]);
+       calibCoeff[j][it] = tmpcalib[j];
+       std::vector<DetId> ids = Type::allDetIdsInRegion(j);
+       for(std::vector<DetId>::const_iterator iid = ids.begin();
+ 	  iid != ids.end(); ++iid) {
+ 	// update calibration map
+ 	calibMap->coeff(*iid) = tmpcalib[j];
+	
+       } // loop over DetId in regions
+     } // loop over regions
+     cout << "Calibration coefficients after iteration " << it+1 << endl;
+     printIterSummary(it);
+    
+   } // loop over iterations
+
+   cout << "The window size opened by the matching algo is: " << clusterwindowsize << endl;
+  
+   // fill plots vs iterations
+   makeSummaryHisto();
+ }
+
+
+ //==============================================
+ template<class Type,int NMaxIter>
+ void EcalCalibAlgo<Type,NMaxIter>::analyze(int iIter) {
+ //==============================================
+  
+   fwlite::EventContainer thisCont(*parser);
+   eventCont = &thisCont;
+  
+   // book mass histograms if this is the last iteration
+   if(iIter==parser->integerValue("iterations")-1) lastIter_ = true;
+   bookHistograms();
+  
+   cout << "\n---------------------------------------------" << endl;
+   cout << "----> Starting iteration " << iIter+1 << " <----" << endl;
+   cout << "---------------------------------------------" << endl;
+  
+   int nevent=0;
+   for (eventCont->toBegin(); ! eventCont->atEnd(); ++(*eventCont) ) 
+     {
+       //////////////////////////////////
+       // Take What We Need From Event //
+       //////////////////////////////////
+      
+       ++nevent;
+       if(nevent%10000 == 0) cout << "Iteration: " << iIter+1 << " Processing event: " << nevent << endl;
+     
+
+       /////////----------------------------------------------------------BARREL ANALYSIS------------------------------------------------------//////////
+      
+       edm::InputTag ebLabel ("ecalPi0Corrected","pi0EcalRecHitsEB");
+       edm::Handle< EBRecHitCollection > ebHandle;
+       eventCont->getByLabel ( ebLabel, ebHandle);
+      
+       std::vector<EcalRecHit> ebseeds;
+       ebseeds.clear();
+      
+       vector <double> ebclusterS4S9; //s4s9 stored for each 3x3 ebclusters
+       vector <bool> ebusedcluster; //used for debugging session, allows to check if the cluster has been used inside the printing procedure or not
+       ebusedcluster.clear();
+      
+       typedef std::map< EBDetId, bool > EBXtalInUse;
+       EBXtalInUse EBXisUsed; // map of which ebxtals have been used
+      
+       std::vector<EBDetId> detIdEBRecHits; 
+       std::vector<EcalRecHit> EBRecHits;
+      
+       // sort by energy and find the ebseeds
+       for(EBRecHitCollection::const_iterator itb= ebHandle->begin(); itb != ebHandle->end(); ++itb) {
+ 	if(itb->energy() > 0.200)  ebseeds.push_back( *itb );
+       } // loop over xtals
+       sort(ebseeds.begin(), ebseeds.end(), ecalRecHitLess());
+      
+       std::vector< CaloCluster > ebclusters; // contains the output ebclusters
+      
+       // loop over ebseeds and make ebclusters
+       for (std::vector<EcalRecHit>::iterator ebitseed=ebseeds.begin(); ebitseed!=ebseeds.end(); ebitseed++) {
+         EBDetId ebseed_id( ebitseed->id() );
+	
+         // check if ebseed already in use. If so go to next seed
+         EBXtalInUse::const_iterator mapit = EBXisUsed.find( ebseed_id );
+         if( mapit != EBXisUsed.end() ) continue; // ebseed already in use
+	
+         // find 3x3 matrix of xtals
+         int clusEtaSize_(3), clusPhiSize_(3);
+         std::vector<DetId> clus_v = ebtopology->getWindow(ebseed_id,clusEtaSize_,clusPhiSize_);       
+         // needed for position calculator
+         std::vector<std::pair<DetId,float> > clus_used;
+        
+         // xtals actually used after removing those already used
+         vector<const EcalRecHit*> RecHitsInWindow;
+         vector<const EcalRecHit*> RecHitsInWindow5x5;
+	
+         float simple_energy = 0; 
+         float posTotalEnergy(0.); // need for position calculation
+         // make 3x3  cluster - reject overlaps
+         for (std::vector<DetId>::const_iterator det=clus_v.begin(); det!=clus_v.end(); det++) {
+ 	  EBDetId thisId( *det );
+ 	  // skip this xtal if already used
+ 	  EBXtalInUse::const_iterator mapit = EBXisUsed.find( thisId );
+ 	  if( mapit != EBXisUsed.end() ) continue; // xtal already used
+	  
+ 	  // find the rec hit
+ 	  EBRecHitCollection::const_iterator ixtal = ebHandle->find( thisId );
+ 	  if( ixtal == ebHandle->end() ) continue; // xtal not found
+	  
+ 	  RecHitsInWindow.push_back( &(*ixtal) );
+ 	  clus_used.push_back(std::make_pair(*det,1.));
+ 	  simple_energy +=  ixtal->energy();
+ 	  if(ixtal->energy()>0.) posTotalEnergy += ixtal->energy(); // use only pos energy for position
+         } // loop over xtals in the region
+	
+         if(simple_energy <= 0) { 
+           cout << "skipping cluster with negative energy " << simple_energy << endl; 
+           continue;
+         }
+	
+         float s4s9_tmp[4];
+         for(int i=0;i<4;i++){ 
+ 	  s4s9_tmp[i]= 0;
+         }
+	
+         int seed_ieta = ebseed_id.ieta();
+         int seed_iphi = ebseed_id.iphi();
+         convxtalid( seed_iphi,seed_ieta);
+	
+         // energy of 3x3 cluster
+         float e3x3(0.);
+         std::vector<std::pair<DetId,float> > enFracs;
+	
+         // variables for position caculation
+         float xclu(0.), yclu(0.), zclu(0.); // temp var to compute weighted average
+         float total_weight(0.);// to compute position
+        
+         // Calculate shower depth
+         float T0 = PCparams_.param_T0_barl_;
+         float maxDepth = PCparams_.param_X0_ * ( T0 + log( posTotalEnergy ) );
+         float maxToFront = geom->getPosition(ebseed_id).mag(); // to front face
+	
+         // loop over xtals and compute energy and position
+         for(unsigned int j=0; j<RecHitsInWindow.size();j++){
+           EBDetId det(RecHitsInWindow[j]->id());
+           //cout << "id: " << det << " calib coeff: " << calibMap->coeff(RecHitsInWindow[j]->id()) << endl;
+	  
+           int ieta = det.ieta();
+           int iphi = det.iphi();
+           convxtalid(iphi,ieta);
+	  
+           // use calibration coeff for energy and position
+           float en = RecHitsInWindow[j]->energy()*calibMap->coeff(RecHitsInWindow[j]->id());
+           int dx = diff_neta_s(seed_ieta,ieta);
+           int dy = diff_nphi_s(seed_iphi,iphi);
+	  
+           if(abs(dx)<=1 && abs(dy)<=1) {
+             e3x3 += en;
+             if(dx <= 0 && dy <=0){ s4s9_tmp[0] += en; }
+             if(dx >= 0 && dy <=0){ s4s9_tmp[1] += en; }
+             if(dx <= 0 && dy >=0){ s4s9_tmp[2] += en; }
+             if(dx >= 0 && dy >=0){ s4s9_tmp[3] += en; }
+ 	    enFracs.push_back( std::make_pair( RecHitsInWindow[j]->id(), en ) );
+ 	    // NOTA BENE: sto usando le frazioni per salvare energia rechit
+            EBXisUsed [RecHitsInWindow[j]->id()] = true;
+           }
+	  
+           // compute position
+           if(en>0.) {
+             float weight = std::max( float(0.), PCparams_.param_W0_ + log(en/posTotalEnergy) );
+	    
+             float depth = maxDepth + maxToFront - geom->getPosition(det).mag() ;
+             GlobalPoint posThis = geom->getPosition(det,depth);
+	    
+             xclu += weight*posThis.x(); 
+             yclu += weight*posThis.y(); 
+             zclu += weight*posThis.z(); 
+             total_weight += weight;
+           }
+	  
+         } // loop over 3x3 rechits
+         float e2x2 = *max_element( s4s9_tmp,s4s9_tmp+4);
+         float s4s9 = e2x2/e3x3;
+         math::XYZPoint clusPos( xclu/total_weight, 
+                                 yclu/total_weight,
+                                 zclu/total_weight ); 
+	
+ 	if(s4s9<0.85) continue;
+	
+	
+         // compute pt of gamma and cut
+         float ptClus = e3x3/cosh(clusPos.eta());
+	
+         // default alca: ptClus > 0.8
+	
+         if(ptClus<0.5) continue;
+	
+
+         // energy corrections in bins of eta and energy
+         if(!noCorrections_) e3x3 *= energyCorrection(e3x3,clusPos.eta());
+	
+         // make calo ebclusters
+         ebclusters.push_back( CaloCluster( e3x3, clusPos, CaloID(CaloID::DET_ECAL_BARREL),
+ 					   enFracs, CaloCluster::undefined, ebseed_id ) );
+ 	ebclusterS4S9.push_back(s4s9);
+	
+ 	ebusedcluster.push_back(false);
+       } //loop over seeds to make ebclusters
+      
+      
+       /////////----------------------------------------------------------PRESHOWER ANALYSIS------------------------------------------------------//////////
+      
+       edm::InputTag esLabel ("hltAlCaPi0RecHitsFilter","pi0EcalRecHitsES"); 
+       edm::Handle< ESRecHitCollection > esHandle;                     
+       eventCont->getByLabel ( esLabel, esHandle);  
+     
+       esroad_2d.clear();
+       used_strips.clear();
+       rechits_map.clear();
+
+       // make the map of rechits:
+       for (ESRecHitCollection::const_iterator it = esHandle->begin(); it != esHandle->end(); it++) {
+           //Make the map of DetID, EcalRecHit pairs
+           rechits_map.insert(std::make_pair(it->id(), *it));
+      }
+
+     /*  for(ESRecHitCollection::const_iterator its= esHandle->begin(); its != esHandle->end(); ++its) {
+	 
+	 eventCont->hist("PreshowerStripsRawEnergyHR")->Fill(its->energy()*1000.);
+	 
+	 
+	 	 ESDetId esseed_id( its->id() );
+		 PreshowerCluster cluster;
+		 cluster = makeOnePreshowerCluster( 5 , esseed_id , &used_strips, &rechits_map, estopology);
+		 int roadcounter = 0;
+		 for (int i = 0; i < (int)esroad_2d.size(); i++){
+		 roadcounter++;
+		 }
+		 cout<< "Goodcluster: "<< cluster.get_goodcluster()<<endl;
+		 bool flag = true;
+		 if (flag == true) continue;
+       }*/
+       /////////----------------------------------------------------------ENDCAP ANALYSIS------------------------------------------------------//////////
+      
+       edm::InputTag eeLabel ("ecalPi0Corrected","pi0EcalRecHitsEE"); 
+       edm::Handle< EERecHitCollection > eeHandle;                     
+       eventCont->getByLabel ( eeLabel, eeHandle);                     
+      
+       std::vector<EcalRecHit> eeseeds;
+       eeseeds.clear();
+      
+       vector <double> eeclusterS4S9; //s4s9 stored for each 3x3 eeclusters
+       vector <bool> eeusedcluster;  //used for debugging session, allows to check if the cluster has been used inside the printing procedure or not
+       eeusedcluster.clear();
+      
+       std::vector< CaloCluster > eeclusters; // contains the output eeclusters
+       std::vector< CaloCluster > eseeclusters;
+       eeclusters.clear();
+       eseeclusters.clear();     
+ 
+       // sort by energy and find the eeseeds
+       for(EERecHitCollection::const_iterator ite= eeHandle->begin(); ite != eeHandle->end(); ++ite) {
+ 	if(ite->energy() > 0.900)  eeseeds.push_back( *ite ); //Original cut 0.800
+       } // loop over xtals
+       sort(eeseeds.begin(), eeseeds.end(), ecalRecHitLess());
+      
+       typedef std::map< EEDetId, bool > EEXtalInUse;
+       EEXtalInUse EEXisUsed;  //map of which eextals have been used
+      
+      
+       //loop over seeds to make eeclusters
+       for (std::vector<EcalRecHit>::iterator eeitseed=eeseeds.begin(); eeitseed!=eeseeds.end(); eeitseed++) {
+ 	EEDetId eeseed_id( eeitseed->id() );
+
+         // check if seed already in use. If so go to next seed
+ 	EEXtalInUse::const_iterator mapit = EEXisUsed.find( eeseed_id );
+ 	if( mapit != EEXisUsed.end() ) continue; // seed already in use
+	
+         // find 3x3 matrix of xtals
+         int clusEtaSize_(3), clusPhiSize_(3);
+         std::vector<DetId> clus_v = eetopology->getWindow(eeseed_id,clusEtaSize_,clusPhiSize_); 
+	
+         // needed for position calculator
+         std::vector<std::pair<DetId,float> > clus_used;
+        
+         // xtals actually used after removing those already used
+         vector<const EcalRecHit*> RecHitsInWindow;
+         vector<const EcalRecHit*> RecHitsInWindow5x5;
+	
+         float simple_energy = 0.; 
+         float posTotalEnergy(0.); // need for position calculation
+	
+	
+	
+ 	// make 3x3  cluster - reject overlaps
+         for (std::vector<DetId>::const_iterator det=clus_v.begin(); det!=clus_v.end(); det++) {
+ 	  EEDetId thisId( *det );
+ 	  // skip this xtal if already used
+ 	  EEXtalInUse::const_iterator mapit = EEXisUsed.find( thisId );
+ 	  if( mapit != EEXisUsed.end() ) continue; // xtal already used
+	  
+ 	  // find the rec hit
+ 	  EERecHitCollection::const_iterator ixtal = eeHandle->find( thisId );
+	  
+ 	  //cout<<"ixtal output: "<< ixtal->energy() <<endl;
+	  
+ 	  if( ixtal == eeHandle->end() ) continue; // xtal not found
+	  
+ 	  RecHitsInWindow.push_back( &(*ixtal) );
+ 	  clus_used.push_back(std::make_pair(*det,1.));
+ 	  simple_energy +=  ixtal->energy();
+ 	  if(ixtal->energy()>0.) posTotalEnergy += ixtal->energy(); // use only pos energy for position
+         }  // loop over xtals in the region
+	
+ 	if(simple_energy <= 0) { 
+ 	  cout << "skipping cluster with negative energy " << simple_energy << endl; 
+ 	  continue;
+         }
+	
+         float s4s9_tmp[4];
+         for(int i=0;i<4;i++){ 
+ 	  s4s9_tmp[i]= 0;
+         }
+	
+         int seed_ieta = eeseed_id.ix(); 
+         int seed_iphi = eeseed_id.iy();   
+	
+         // energy of 3x3 cluster
+         float e3x3(0.);
+	
+         std::vector<std::pair<DetId,float> > enFracs;
+	
+         // variables for position caculation
+         float xclu(0.), yclu(0.), zclu(0.); // temp var to compute weighted average
+         float total_weight(0.);// to compute position
+	
+         // Calculate shower depth
+         float T0 = PCparams_.param_T0_endc_;
+         float maxDepth = PCparams_.param_X0_ * ( T0 + log( posTotalEnergy ) );
+         float maxToFront = geom->getPosition(eeseed_id).mag(); // to front face
+
+ 	// loop over xtals and compute energy and position
+         for(unsigned int j=0; j<RecHitsInWindow.size();j++){
+	  
+           EEDetId det(RecHitsInWindow[j]->id());
+           //cout << "id: " << det << " calib coeff: " << calibMap->coeff(RecHitsInWindow[j]->id()) << endl;
+	  
+           int ieta = det.ix();
+           int iphi = det.iy();
+	  
+           // use calibration coeff for energy and position
+           float en = RecHitsInWindow[j]->energy();  //*calibMap->coeff(RecHitsInWindow[j]->id());
+           int dx = diff_neta_s(seed_ieta,ieta);
+           int dy = diff_nphi_s(seed_iphi,iphi);
+	  
+           if(abs(dx)<=1 && abs(dy)<=1) {
+             e3x3 += en;
+             if(dx <= 0 && dy <=0){ s4s9_tmp[0] += en; }
+             if(dx >= 0 && dy <=0){ s4s9_tmp[1] += en; }
+             if(dx <= 0 && dy >=0){ s4s9_tmp[2] += en; }
+             if(dx >= 0 && dy >=0){ s4s9_tmp[3] += en; }
+ 	       enFracs.push_back( std::make_pair( RecHitsInWindow[j]->id(), en ) );
+ 	    // NOTA BENE: sto usando le frazioni per salvare energia rechit
+           }
+	  
+           // compute position
+           if(en>0.) {
+             float weight = std::max( float(0.), PCparams_.param_W0_ + log(en/posTotalEnergy) );
+	    
+             float depth = maxDepth + maxToFront - geom->getPosition(det).mag() ;
+             GlobalPoint posThis = geom->getPosition(det,depth);
+	    
+             xclu += weight*posThis.x(); 
+             yclu += weight*posThis.y(); 
+             zclu += weight*posThis.z(); 
+             total_weight += weight;
+	    
+ 	  }
+ 	} // loop over 3x3 eerechits
+	
+ 	float e2x2 = *max_element( s4s9_tmp,s4s9_tmp+4);
+ 	float s4s9 = e2x2/e3x3;
+ 	math::XYZPoint clusPos( xclu/total_weight, 
+ 				yclu/total_weight,
+ 				zclu/total_weight ); 
+	
+ 	if(s4s9<0.95) continue; //original cut 0.9
+	
+ 	float ptClus = e3x3/cosh(clusPos.eta());
+	
+ 	if(ptClus<0.8) continue;  //original cut 0.6
+	
+ 	// make calo clusters
+
+     //Filling the usedxtal vector
+     for(unsigned int j=0; j<RecHitsInWindow.size();j++){
+        EEXisUsed [RecHitsInWindow[j]->id()] = true;
+      }
+
+ 	eeclusters.push_back( CaloCluster( e3x3, clusPos, CaloID(CaloID::DET_ECAL_ENDCAP),
+ 					   enFracs, CaloCluster::undefined, eeseed_id ) );
+
+
+ 	eeclusterS4S9.push_back(s4s9);
+	
+ 	eeusedcluster.push_back(false);
+       } //loop over seeds to make eeclusters
+       
+     
+////////-----------------------------------------------------------ENDCAP-PRESHOWER MATCHING-------------------------------------------///////////////
+
+  //loops over eecluster to find matches with preshower
+  for( std::vector<CaloCluster>::const_iterator eeclus_iter  = eeclusters.begin(); eeclus_iter != eeclusters.end(); ++eeclus_iter){
+   
+       //cout << "Before etacut" << endl;
+       //etacut for preshower detector
+       //if ((fabs(eeclus_iter->eta()) > 2.1)||(fabs(eeclus_iter->eta()) < 1.6)) continue;
+       //cout << "After etacut" << endl;
+
+       bool failedplanesearch = false;
+
+       double X = eeclus_iter->x();
+       double Y = eeclus_iter->y(); 
+       double Z = eeclus_iter->z();
+       const GlobalPoint point(X,Y,Z);
+
+       //cout << "/- - - - - - - - - - - - - - - - - - - - - - - - - - - -/"<<endl;
+       //cout << "EEcluster Energy : " << eeclus_iter->energy() <<endl;
+       //cout << "EEcluster Position: " << point << endl;
+       //cout << "EEcluster Eta: " << eeclus_iter->eta() << endl;
+       //cout << "EEcluster Phi: " << eeclus_iter->phi() << endl;
+
+       //cout << "Before" << endl;
+       DetId tmp1 = hardcodedPreshowerGeometry->getClosestCellInPlane(point,1);
+       DetId tmp2 = hardcodedPreshowerGeometry->getClosestCellInPlane(point,2);
+       //cout << "After" << endl;
+
+       if ((tmp1.rawId()==0)||(tmp2.rawId()==0)) {failedplanesearch = true;} 
+
+
+if (!failedplanesearch) {
+       //cout << "RawId 1:" << tmp1.rawId() << endl;
+       //cout << "RawId 2:" << tmp2.rawId() << endl;
+          //cout << "Before getting the position" << endl;
+          GlobalPoint position1 = geom->getPosition(tmp1);
+          //math::XYZPoint planepos (position1.x(),position1.y(),position1.z());
+          //cout << "Strip 1 eta:" << planepos.eta() << endl;
+          GlobalPoint position2 = geom->getPosition(tmp2);
+          //cout << "After getting the position" << endl;
+
+          ESDetId tmp1_conversion (tmp1);
+          ESDetId tmp2_conversion (tmp2);
+
+          //cout << "Before makeonecluster" << endl;
+          PreshowerCluster preshowerclusterp1 = makeOnePreshowerCluster( clusterwindowsize, &tmp1_conversion, &used_strips, &rechits_map,estopology);
+          PreshowerCluster preshowerclusterp2 = makeOnePreshowerCluster( clusterwindowsize, &tmp2_conversion, &used_strips, &rechits_map,estopology);
+          //cout << "After  aftermakeonecluster" << endl;
+
+
+          double e1 = preshowerclusterp1.get_energy();
+          double e2 = preshowerclusterp2.get_energy();
+
+          // update energy of the SuperCluster    
+          if(e1+e2 > 1.0e-10) {
+             // GeV to #MIPs
+             e1 = e1 / mip_;
+             e2 = e2 / mip_;
+             double deltaE = gamma_*(calib_planeX_*e1+calib_planeY_*e2);
+
+             double tempenergy = deltaE + eeclus_iter->energy();
+
+             eseeclusters.push_back( CaloCluster( tempenergy, eeclus_iter->position(), CaloID(CaloID::DET_ECAL_ENDCAP),
+                                              eeclus_iter->hitsAndFractions(), CaloCluster::undefined, eeclus_iter->seed() ) );
+
+          }
+             //double xclusterpos = gamma_*(calib_planeX_* e1 * preshowerclusterp1.get_x() + calib_planeY_* e2 * preshowerclusterp2.get_x())/deltaE;
+             //double yclusterpos = gamma_*(calib_planeX_* e1 * preshowerclusterp1.get_y() + calib_planeY_* e2 * preshowerclusterp2.get_y())/deltaE;
+             //double zclusterpos = gamma_*(calib_planeX_* e1 * preshowerclusterp1.get_z() + calib_planeY_* e2 * preshowerclusterp2.get_z())/deltaE;
+
+          //cout << "Presh clus X pos: " << xclusterpos << " Y pos: " << yclusterpos << " z pos: " << zclusterpos << endl;
+
+          //cout << "Presh clus E: " << deltaE << endl;
+        
+          //cout << "Presh Clus Eta: " << esclusPos.eta() << endl;
+          //cout << "Presh Clus Phi: " << esclusPos.phi() << endl;
+         } else{
+
+
+     eseeclusters.push_back( CaloCluster( eeclus_iter->energy(), eeclus_iter->position(), CaloID(CaloID::DET_ECAL_ENDCAP),
+                                          eeclus_iter->hitsAndFractions(), CaloCluster::undefined, eeclus_iter->seed() ) );
+     }
+  }//end of the matching loop
+
+      // loop over clusters to make Pi0 for EB
+       int i = 0;    //indexes of the ebclusterS4S9 vector
+      
+       for( std::vector<CaloCluster>::const_iterator g1  = ebclusters.begin();
+ 	   g1 != ebclusters.end(); ++g1) {
+	
+ 	int j = 0;
+         for( std::vector<CaloCluster>::const_iterator g2 = g1+1; g2 != ebclusters.end(); ++g2 ) {
+	  
+ 	  math::PtEtaPhiMLorentzVector g1P4( g1->energy()/cosh(g1->eta()), g1->eta(), g1->phi(), 0. );
+ 	  math::PtEtaPhiMLorentzVector g2P4( g2->energy()/cosh(g2->eta()), g2->eta(), g2->phi(), 0. );
+	  
+ 	  math::PtEtaPhiMLorentzVector pi0P4 = g1P4 + g2P4;
+	  
+ 	  // ptPi0 cut: default alca > 1.6
+ 	  if(pi0P4.Pt() < 1.0) continue;
+	  
+	  
+ 	  //loops over gammas to measure isolation
+	  
+ 	  float isolation = 0;
+ 	  for( std::vector<CaloCluster>::const_iterator g3  = ebclusters.begin(); g3 != ebclusters.end(); ++g3){
+ 	    if( g3->seed() == g1->seed() || g3->seed() == g2->seed()) continue;
+ 	    math::PtEtaPhiMLorentzVector g3P4( g3->energy()/cosh(g3->eta()), g3->eta(), g3->phi(), 0. );
+ 	    float drcl = GetDeltaR(pi0P4.eta(),g3P4.eta(),pi0P4.phi(),g3P4.phi()); 
+ 	    float dretacl = fabs(pi0P4.eta() - g3P4.eta());
+ 	    if( drcl > 0.2 ||  dretacl > 0.05 ) continue; 
+ 	    isolation += g3P4.Pt();
+	    
+ 	  }//End of loops over gammas to measure isolation
+	  
+ 	  if(isolation/pi0P4.Pt() > 0.5) continue;  //Pi0 isolation cut
+	  
+ 	  // fill mass plots if this is the last iteration
+ 	  if(lastIter_) {
+ 	    if(fabs(pi0P4.eta())<=1.5) eventCont->hist("Pi0MassEB")->Fill(pi0P4.mass());
+	    
+ 	    if (ebusedcluster[i] == false){
+ 	      eventCont->hist("Ptgamma1EB")->Fill(g1P4.Pt());
+ 	      eventCont->hist("etagamma1EB")->Fill(g1P4.eta());
+ 	      eventCont->hist("phigamma1EB")->Fill(g1P4.phi());
+ 	      ebusedcluster[i] = true;
+ 	    }
+	    
+ 	    /*  if(g1P4.Pt() >= g2P4.Pt()){
+ 		if (ebusedcluster[i] == false){
+ 		eventCont->hist("Ptgamma1EB")->Fill(g1P4.Pt());
+ 		eventCont->hist("etagamma1EB")->Fill(g1P4.eta());
+ 		eventCont->hist("phigamma1EB")->Fill(g1P4.phi());
+ 		ebusedcluster[i] = true;
+ 		}
+ 		} else {
+ 		if (ebusedcluster[i] == false){
+ 		eventCont->hist("Ptgamma2EB")->Fill(g1P4.Pt());
+ 		eventCont->hist("etagamma2EB")->Fill(g1P4.eta());
+ 		eventCont->hist("phigamma2EB")->Fill(g1P4.phi());
+ 		ebusedcluster[i] = true;
+ 		}
+ 		}*/
+	       
+ 	    if ((pi0P4.mass()>=0.095)&&(pi0P4.mass()<=0.171)) {eventCont->hist("s4s9S_EB")->Fill( (double)ebclusterS4S9[i]);}
+ 	    if ((pi0P4.mass()>=0.2)&&(pi0P4.mass()<=0.3)) {eventCont->hist("s4s9SB_EB")->Fill((double)ebclusterS4S9[i]);}
+ 	    if ((pi0P4.mass()>=0.095)&&(pi0P4.mass()<=0.171)) {eventCont->hist("s4s9S_EB")->Fill((double)ebclusterS4S9[j]);}
+ 	    if ((pi0P4.mass()>=0.2)&&(pi0P4.mass()<=0.3)) {eventCont->hist("s4s9SB_EB")->Fill((double)ebclusterS4S9[j]); }
+	    
+ 	    eventCont->hist("PtPi0EB")->Fill(pi0P4.Pt());
+ 	    eventCont->hist("etaPi0EB")->Fill(pi0P4.eta());
+ 	    eventCont->hist("phiPi0EB")->Fill(pi0P4.phi());
+ 	    eventCont->hist("Pi0MassvsetaEB")->Fill(pi0P4.eta(), pi0P4.mass());
+ 	    eventCont->hist("Pi0Massvsptpi0EB")->Fill(pi0P4.pt(), pi0P4.mass());
+ 	    if(fabs(pi0P4.eta())<=1.) {
+ 	      if(pi0P4.eta()>0.) eventCont->hist("Pi0MassvsphiposEB")->Fill(pi0P4.phi(), pi0P4.mass());
+ 	      else               eventCont->hist("Pi0MassvsphinegEB")->Fill(pi0P4.phi(), pi0P4.mass());
+ 	    }
+ 	  }
+	  
+	  //use candidates in the signal mass window
+ 	  if(pi0P4.mass()<0.095 || pi0P4.mass()>0.175) continue;
+	  
+ #ifdef DEBUG
+ 	  cout << "---------------------------------------" << endl;
+ 	  cout << "---- pi0 mass: " << pi0P4.mass() << endl;
+ 	  cout << "---------------------------------------" << endl;
+ #endif
+ 	  // compute region weights
+ 	  RegionWeightVector w1 = getWeights( &(*g1) );// region weights W_j^k for clu1
+ 	  RegionWeightVector w2 = getWeights( &(*g2) );// region weights W_j^k for clu2
+	  
+ 	  // append w2 to w1
+ 	  w1.insert( w1.end(), w2.begin(), w2.end() );
+	  
+ 	  float r2 = pi0P4.mass()/PI0MASS;
+ 	  r2 = r2*r2;
+ 	  //average <eps> for cand k
+ 	  float eps_k = 0.5 * ( r2 - 1. );
+	  
+ 	  // compute quantities needed for <eps>_j in each region j
+ 	  for(RegionWeightVector::const_iterator it = w1.begin(); it != w1.end(); ++it) {
+ 	    const uint32_t& iR = (*it).iRegion;
+ 	    const float& w = (*it).value;
+ 	    entries[iR][iIter] += w; 
+ 	    Numer[iR] += eps_k*w;
+ 	    Denom[iR] += w;
+	    
+ 	    // too many histograms
+ 	    /** 
+ 		if(lastIter_) { // fill histograms
+ 		char name[100];
+ 		sprintf(name,"Pi0Mass_%u",iR);
+ 		eventCont->hist(name)->Fill(pi0P4.mass());
+ 		sprintf(name,"eps_%u",iR);
+ 		eventCont->hist(name)->Fill(eps_k*w);
+ 		}
+ 	    **/
+ 	  }
+ 	  j++;    
+         } // loop over clusters (g2)
+ 	i++;
+       } // loop over clusters to make pi0 
+      
+       ebclusterS4S9.clear();
+       ebusedcluster.clear();
+      
+       // loop over clusters to make Pi0 for ES+EE
+      
+       for( std::vector<CaloCluster>::const_iterator g1  = eseeclusters.begin();
+ 	   g1 != eseeclusters.end(); ++g1) {
+         for( std::vector<CaloCluster>::const_iterator g2 = g1+1; g2 != eseeclusters.end(); ++g2 ) {
+	  
+ 	  math::PtEtaPhiMLorentzVector g1P4( g1->energy()/cosh(g1->eta()), g1->eta(), g1->phi(), 0. );
+ 	  math::PtEtaPhiMLorentzVector g2P4( g2->energy()/cosh(g2->eta()), g2->eta(), g2->phi(), 0. );
+	  
+ 	  math::PtEtaPhiMLorentzVector pi0P4 = g1P4 + g2P4;
+	  
+ 	  // ptPi0 cut: default alca > 1.6
+ 	  if(pi0P4.Pt() < 2.8) continue;  //Original cut 2.5
+	  
+ 	  //loops over gammas to measure isolation
+	  
+ 	  float isolation = 0;
+ 	  for( std::vector<CaloCluster>::const_iterator g3  = eseeclusters.begin(); g3 != eseeclusters.end(); ++g3){
+ 	    if( g3->seed() == g1->seed() || g3->seed() == g2->seed()) continue;
+ 	    math::PtEtaPhiMLorentzVector g3P4( g3->energy()/cosh(g3->eta()), g3->eta(), g3->phi(), 0. );
+ 	    float drcl = GetDeltaR(pi0P4.eta(),g3P4.eta(),pi0P4.phi(),g3P4.phi()); 
+ 	    float dretacl = fabs(pi0P4.eta() - g3P4.eta());
+ 	    if( drcl > 0.2 ||  dretacl > 0.05 ) continue; 
+ 	    isolation += g3P4.Pt();
+	    
+ 	  }//End of loops over gammas to measure isolation
+	  
+ 	  if(isolation/pi0P4.Pt() > 0.5) continue;  //Pi0 isolation cut
+	  
+ 	  // fill mass plots if this is the last iteration
+ 	  if(lastIter_) {
+ 	    eventCont->hist("Pi0MassESEE")->Fill(pi0P4.mass());
+ 	    if((fabs(pi0P4.eta())<1.7)&&(fabs(pi0P4.eta())>=1.479)){eventCont->hist("Pi0MassESEEetacutr1")->Fill(pi0P4.mass());}
+             else if ((fabs(pi0P4.eta())<2.0)&&(fabs(pi0P4.eta())>=1.7)) {eventCont->hist("Pi0MassESEEetacutr2")->Fill(pi0P4.mass());}
+             else if ((fabs(pi0P4.eta())<=2.5)&&(fabs(pi0P4.eta())>=2.0)) {eventCont->hist("Pi0MassESEEetacutr3")->Fill(pi0P4.mass());}
+          if(fabs(pi0P4.eta())<=2.2){eventCont->hist("Pi0MassESEEetacut")->Fill(pi0P4.mass());}
+          if((fabs(pi0P4.eta())<=2.8)&&(fabs(pi0P4.eta())>=2.2)){eventCont->hist("Pi0MassESEEetacutr4")->Fill(pi0P4.mass());}
+         }    
+      }
+   }
+   // loop over clusters to make Pi0 for EE
+      
+       i = 0; 
+      
+       for( std::vector<CaloCluster>::const_iterator g1  = eeclusters.begin();
+ 	   g1 != eeclusters.end(); ++g1) {
+ 	int j = 0;
+         for( std::vector<CaloCluster>::const_iterator g2 = g1+1; g2 != eeclusters.end(); ++g2 ) {
+	  
+ 	  math::PtEtaPhiMLorentzVector g1P4( g1->energy()/cosh(g1->eta()), g1->eta(), g1->phi(), 0. );
+ 	  math::PtEtaPhiMLorentzVector g2P4( g2->energy()/cosh(g2->eta()), g2->eta(), g2->phi(), 0. );
+	  
+ 	  math::PtEtaPhiMLorentzVector pi0P4 = g1P4 + g2P4;
+	  
+ 	  // ptPi0 cut: default alca > 1.6
+ 	  if(pi0P4.Pt() < 2.8) continue;  //Original cut 2.5
+	  
+ 	  //loops over gammas to measure isolation
+	  
+ 	  float isolation = 0;
+ 	  for( std::vector<CaloCluster>::const_iterator g3  = eeclusters.begin(); g3 != eeclusters.end(); ++g3){
+ 	    if( g3->seed() == g1->seed() || g3->seed() == g2->seed()) continue;
+ 	    math::PtEtaPhiMLorentzVector g3P4( g3->energy()/cosh(g3->eta()), g3->eta(), g3->phi(), 0. );
+ 	    float drcl = GetDeltaR(pi0P4.eta(),g3P4.eta(),pi0P4.phi(),g3P4.phi()); 
+ 	    float dretacl = fabs(pi0P4.eta() - g3P4.eta());
+ 	    if( drcl > 0.2 ||  dretacl > 0.05 ) continue; 
+ 	    isolation += g3P4.Pt();
+	    
+ 	  }//End of loops over gammas to measure isolation
+	  
+ 	  if(isolation/pi0P4.Pt() > 0.5) continue;  //Pi0 isolation cut
+	  
+ 	  // fill mass plots if this is the last iteration
+ 	  if(lastIter_) {
+ 	    eventCont->hist("Pi0MassEE")->Fill(pi0P4.mass());
+ 	    if(fabs(pi0P4.eta())<=2.2){eventCont->hist("Pi0MassEEetacut")->Fill(pi0P4.mass());}
+	    
+ 	    if (eeusedcluster[i] == false){
+ 	      eventCont->hist("Ptgamma1EE")->Fill(g1P4.Pt());
+ 	      eventCont->hist("etagamma1EE")->Fill(g1P4.eta());
+ 	      eventCont->hist("phigamma1EE")->Fill(g1P4.phi());
+ 	      if ((fabs(g1P4.eta())>=1.479)&&(fabs(g1P4.eta())<=2.0)){eventCont->hist("Ptgamma1EEr1")->Fill(g1P4.Pt());}
+ 	      if ((fabs(g1P4.eta())>=2.0)&&(fabs(g1P4.eta())<=2.5)){eventCont->hist("Ptgamma1EEr2")->Fill(g1P4.Pt());}
+ 	      if ((fabs(g1P4.eta())>=2.5)&&(fabs(g1P4.eta())<=3.0)){eventCont->hist("Ptgamma1EEr3")->Fill(g1P4.Pt());}
+ 	      eeusedcluster[i] = true;
+ 	    }
+	    
+ 	    /* if(g1P4.Pt() >= g2P4.Pt()){
+ 	       if (eeusedcluster[i] == false){
+ 	       eventCont->hist("Ptgamma1EE")->Fill(g1P4.Pt());
+ 	       eventCont->hist("etagamma1EE")->Fill(g1P4.eta());
+ 	       eventCont->hist("phigamma1EE")->Fill(g1P4.phi());
+ 	       if ((fabs(g1P4.eta())>=1.479)&&(fabs(g1P4.eta())<=2.0)){eventCont->hist("Ptgamma1EEr1")->Fill(g1P4.Pt());}
+ 	       if ((fabs(g1P4.eta())>=2.0)&&(fabs(g1P4.eta())<=2.5)){eventCont->hist("Ptgamma1EEr2")->Fill(g1P4.Pt());}
+ 	       if ((fabs(g1P4.eta())>=2.5)&&(fabs(g1P4.eta())<=3.0)){eventCont->hist("Ptgamma1EEr3")->Fill(g1P4.Pt());}
+ 	       eeusedcluster[i] = true;
+ 	       }
+ 	       } else {
+ 	       if (eeusedcluster[i] == false){
+ 	       eventCont->hist("Ptgamma2EE")->Fill(g1P4.Pt());
+ 	       if(g1P4.eta() > 0.){eventCont->hist("Ptgamma2EE+")->Fill(g1P4.Pt());}
+ 	       if(g1P4.eta() < 0.){eventCont->hist("Ptgamma2EE-")->Fill(g1P4.Pt());}
+ 	       eventCont->hist("etagamma2EE")->Fill(g1P4.eta());
+ 	       eventCont->hist("phigamma2EE")->Fill(g1P4.phi());
+ 	       if ((fabs(g1P4.eta())>=1.479)&&(fabs(g1P4.eta())<=2.0)){eventCont->hist("Ptgamma2EEr1")->Fill(g1P4.Pt());}
+ 	       if ((fabs(g1P4.eta())>=2.0)&&(fabs(g1P4.eta())<=2.5)){eventCont->hist("Ptgamma2EEr2")->Fill(g1P4.Pt());}
+ 	       if ((fabs(g1P4.eta())>=2.5)&&(fabs(g1P4.eta())<=3.0)){eventCont->hist("Ptgamma2EEr3")->Fill(g1P4.Pt());}
+ 	       eeusedcluster[i] = true;
+ 	       }
+ 	       }*/
+	    
+ 	    if ((pi0P4.mass()>=0.095)&&(pi0P4.mass()<=0.171)) {eventCont->hist("s4s9S_EE")->Fill( (double)eeclusterS4S9[i]);}
+ 	    if ((pi0P4.mass()>=0.2)&&(pi0P4.mass()<=0.3)) {eventCont->hist("s4s9SB_EE")->Fill((double)eeclusterS4S9[i]);}
+ 	    if ((pi0P4.mass()>=0.095)&&(pi0P4.mass()<=0.171)) {eventCont->hist("s4s9S_EE")->Fill((double)eeclusterS4S9[j]);}
+ 	    if ((pi0P4.mass()>=0.2)&&(pi0P4.mass()<=0.3)) {eventCont->hist("s4s9SB_EE")->Fill((double)eeclusterS4S9[j]); }
+	    
+ 	    eventCont->hist("PtPi0EE")->Fill(pi0P4.Pt());
+ 	    eventCont->hist("etaPi0EE")->Fill(pi0P4.eta());
+ 	    eventCont->hist("phiPi0EE")->Fill(pi0P4.phi());
+ 	  }
+ 	  j++;    
+ 	} // loop over clusters (g2)
+ 	i++;	     
+       } // loop over clusters to make pi0 
+      
+       eeclusterS4S9.clear();
+       eeusedcluster.clear();
+      
+ #ifdef DEBUG2
+       // pi0 from raw energy w/o calib coefficients
+       for( std::vector<CaloCluster>::const_iterator g1  = clustersRaw.begin();
+ 	   g1 != clustersRaw.end(); ++g1) {
+         for( std::vector<CaloCluster>::const_iterator g2 = g1+1; g2 != clustersRaw.end(); ++g2 ) {
+	  
+ 	  math::PtEtaPhiMLorentzVector g1P4( g1->energy()/cosh(g1->eta()), g1->eta(), g1->phi(), 0. );
+ 	  math::PtEtaPhiMLorentzVector g2P4( g2->energy()/cosh(g2->eta()), g2->eta(), g2->phi(), 0. );
+ 	  math::PtEtaPhiMLorentzVector pi0P4 = g1P4 + g2P4;
+         }
+       } // loop over clusters to make pi0 
+ #endif
+     } // for eventCont
+ }
+
+
+ //================================================================================================
+ template<class Type,int NMaxIter>
+ RegionWeightVector EcalCalibAlgo<Type,NMaxIter>::getWeights(const reco::CaloCluster* clus) const {             
+ //================================================================================================
+   RegionWeightVector weights;
+  
+   // map to compute energy&weight for each region
+   std::map<uint32_t,float> regionWeightMap;
+   const EnergyFractionVector& enHits = clus->hitsAndFractions();
+ #ifdef DEBUG
+   cout << "   -- cluster energy: " << clus->energy() << endl;
+ #endif
+   for(EnergyFractionVector::const_iterator it =  enHits.begin();
+       it != enHits.end(); ++it) {
+     uint32_t iR = Type::iRegion( it->first );
+     float energy = it->second;
+     if(energy==0.) continue;
+ #ifdef DEBUG
+     cout << "id: " << EBDetId(it->first)
+ 	 << "iR: " << iR << " E: " << energy
+ 	 << endl;
+ #endif
+     regionWeightMap[iR] += energy;
+   } 
+   for(std::map<uint32_t,float>::const_iterator it2 = regionWeightMap.begin();
+       it2 != regionWeightMap.end(); ++it2) {
+     RegionWeight w; 
+     w.iRegion = it2->first;
+     // only positive weights
+     w.value   = (it2->second<0.) ? 0. : it2->second/clus->energy();
+     // no w>1. weight!
+     w.value   =  (w.value>1.) ? 1. : w.value;
+     weights.push_back( w );
+ #ifdef DEBUG
+     cout << "iR: " << w.iRegion << " energy: " << it2->second
+ 	 << " weight: " << w.value
+ 	 << endl;
+ #endif
+   }
+   return weights;
+ }
+
+ template<class Type,int NMaxIter>
+ float EcalCalibAlgo<Type,NMaxIter>::DeltaPhi(float phi1, float phi2){
+  
+   float diff = fabs(phi2 - phi1);
+  
+   while (diff >acos(-1)) diff -= 2*acos(-1);
+   while (diff <= -acos(-1)) diff += 2*acos(-1);
+  
+   return diff; 
+  
+ }
+
+
+ template<class Type,int NMaxIter>
+ float EcalCalibAlgo<Type,NMaxIter>::GetDeltaR(float eta1, float eta2, float phi1, float phi2){
+  
+   return sqrt( (eta1-eta2)*(eta1-eta2) 
+ 	       + DeltaPhi(phi1, phi2)*DeltaPhi(phi1, phi2) );
+  
+ }
+
+
+
+//find strips in the road of size +/- stripwindow from the central strip
+
+ template<class Type,int NMaxIter>
+ void EcalCalibAlgo<Type,NMaxIter>::findESRoad(int stripwindow, ESDetId strip, EcalPreshowerNavigator theESNav, int plane) {
+  
+   if ( strip == ESDetId(0) ) return;
+
+    ESDetId next;
+    theESNav.setHome(strip);
+ // First, add a central strip to the road 
+    esroad_2d.push_back(strip);   
+   
+    if (plane == 1) {
+      // east road
+      int n_east= 0;
+      while ( ((next=theESNav.east()) != ESDetId(0) && next != strip) ) {
+         esroad_2d.push_back(next);   
+         ++n_east;  
+         if (n_east == stripwindow) break; 
+      }
+      // west road
+
+      int n_west= 0;
+      theESNav.home();
+      while ( ((next=theESNav.west()) != ESDetId(0) && next != strip )) {
+         esroad_2d.push_back(next);   
+         ++n_west;  
+         if (n_west == stripwindow) break; 
+      }
+   } 
+   else if (plane == 2) {
+     // north road
+     int n_north= 0;
+     while ( ((next=theESNav.north()) != ESDetId(0) && next != strip) ) {       
+        esroad_2d.push_back(next);   
+        ++n_north;  
+        if (n_north == stripwindow) break; 
+     }
+     // south road
+     int n_south= 0;
+     theESNav.home();
+     while ( ((next=theESNav.south()) != ESDetId(0) && next != strip) ) {
+        esroad_2d.push_back(next);   
+        ++n_south;  
+        if (n_south == stripwindow) break; 
+     }
+   } 
+
+   theESNav.home();
+ }
+ // returns true if the candidate strip fulfills the requirements to be added to the cluster:
+ //=====================================================================================================
+ template<class Type,int NMaxIter>
+ bool EcalCalibAlgo<Type,NMaxIter>::goodStrip(RecHitsMap::iterator candidate_it)
+ //======================================================================================================
+ {
+   // crystal should not be included...
+
+      if ( (used_strips.find(candidate_it->first) != used_strips.end())  ||        //...if it already belongs to a cluster
+        (candidate_it == rechits_map.end() )                    ||        //...if it corresponds to a hit
+        (candidate_it->second.energy() <= 0. ) )   // ...if it has a negative or zero energy
+     {
+     return false;
+     }
+      //Used for debug
+      /*   if (used_strips.find(candidate_it->first) != used_strips.end()){cout<<"The Strip Already belongs to a cluster"<<endl;
+       return false;} else if (candidate_it == rechits_map.end()){cout<<"The Strip correspond to a hit"<<endl;
+       return false;} else if (candidate_it->second.energy() <= 0. ) {cout<<"the strip has a negative or zero energy"<<endl;
+       return false;}*/
+     
+   return true;
+ }
+
+
+ //=====================================================================================================
+ template<class Type,int NMaxIter>
+ PreshowerCluster EcalCalibAlgo<Type,NMaxIter>::makeOnePreshowerCluster(int stripwindow,
+ 								       ESDetId *strip,
+ 								       HitsID *used_strips,
+ 								       RecHitsMap *the_rechitsMap_p,
+ 								       CaloSubdetectorTopology* topology_p)
+ //======================================================================================================
+
+ {
+   //the output class
+   PreshowerCluster finalcluster;
+
+   // The map of hits
+   RecHitsMap *rechits_map;
+
+   // The set of used DetID's
+   HitsID *used_s;
+
+   esroad_2d.clear();
+
+   rechits_map = the_rechitsMap_p;
+
+   used_s = used_strips;
+
+  
+   int plane = strip->plane();
+
+  
+  // Collection of cluster strips
+   EcalRecHitCollection clusterRecHits;
+   // Map of strips for position calculation
+   RecHitsMap recHits_pos;
+
+   //Make a navigator, and set it to the strip cell.
+   EcalPreshowerNavigator navigator(*strip, topology_p);
+   navigator.setHome(*strip);
+  //search for neighbours in the central road
+   findESRoad(stripwindow,*strip,navigator,plane);
+
+   if ( plane == 1 ) {
+      ESDetId strip_north = navigator.north();
+      findESRoad(stripwindow,strip_north,navigator,plane);
+      navigator.home();
+      ESDetId strip_south = navigator.south();
+      findESRoad(stripwindow,strip_south,navigator,plane);
+      navigator.home();
+   }
+   if ( plane == 2 ) {
+      ESDetId strip_east = navigator.east();
+      findESRoad(stripwindow,strip_east,navigator,plane);
+      navigator.home();
+      ESDetId strip_west = navigator.west();
+      findESRoad(stripwindow,strip_west,navigator,plane);
+      navigator.home();
+   }
+
+   // Start clustering from strip with max Energy in the road
+   float E_max = 0.;
+   bool found = false;
+   RecHitsMap::iterator max_it;
+   // Loop over strips:
+   std::vector<ESDetId>::iterator itID;
+   for (itID = esroad_2d.begin(); itID != esroad_2d.end(); itID++) {
+     RecHitsMap::iterator strip_it = rechits_map->find(*itID);   
+     if(!goodStrip(strip_it)) continue;
+
+     DetId nonblindstripid (itID->rawId());
+     GlobalPoint position = geom->getPosition(nonblindstripid);
+     //if (position.z() > 0.)eventCont->hist("nonBlindstripPositionZpos")->Fill(position.x(),position.y());
+     //if (position.z() < 0.)eventCont->hist("nonBlindstripPositionZneg")->Fill(position.x(),position.y());
+
+     float E = strip_it->second.energy();
+     if ( E > E_max) {
+        E_max = E;
+        found = true;
+        max_it = strip_it;
+     }
+   }
+  
+	     if ( !found ) {//cout<<"WARNING: HOTSTRIP NOT FOUND!!!"<<endl;
+
+           for (itID = esroad_2d.begin(); itID != esroad_2d.end(); itID++) {
+               DetId blindstripid (itID->rawId());
+               GlobalPoint position = geom->getPosition(blindstripid);
+               //cout << "X Position: " << position.x() << "Y Position: " << position.y() << "Z Position: " << position.z() << endl;
+               //if (position.z() > 0.)eventCont->hist("BlindstripPositionZpos")->Fill(position.x(),position.y());
+               //if (position.z() < 0.)eventCont->hist("BlindstripPositionZneg")->Fill(position.x(),position.y());    
+           }
+
+           return finalcluster;}
+
+   // First, save the hottest strip
+   clusterRecHits.push_back(max_it->second);  
+   recHits_pos.insert(std::make_pair(max_it->first, max_it->second));
+   used_s->insert(max_it->first);
+
+   // Find positions of adjacent strips:
+   ESDetId next, strip_1, strip_2;
+   navigator.setHome(max_it->first);
+   ESDetId startES = max_it->first;
+  
+   if (plane == 1) {
+     // Save two neighbouring strips to the east
+     int nadjacents_east = 0;
+     while ( (next=navigator.east()) != ESDetId(0) && next != startES && nadjacents_east < 2 ) {
+       ++nadjacents_east;
+       RecHitsMap::iterator strip_it = rechits_map->find(next);
+      
+		   if(!goodStrip(strip_it)) continue;
+       // Save strip for clustering if it exists, not already in use, and satisfies an energy threshold
+        clusterRecHits.push_back(strip_it->second);       
+        // save strip for position calculation
+        if ( nadjacents_east==1 ) strip_1 = next;
+        used_s->insert(strip_it->first);             
+     }
+     // Save two neighbouring strips to the west
+     navigator.home();
+     int nadjacents_west = 0;
+     while ( (next=navigator.west()) != ESDetId(0) && next != startES && nadjacents_west < 2 ) {
+        ++nadjacents_west;
+        RecHitsMap::iterator strip_it = rechits_map->find(next);
+        if(!goodStrip(strip_it)) continue;
+        clusterRecHits.push_back(strip_it->second);
+        if ( nadjacents_west==1 ) strip_2 = next;
+        used_s->insert(strip_it->first);       
+     }
+   }
+  else if (plane == 2) {
+
+   // Save two neighbouring strips to the north
+     int nadjacents_north = 0;
+     while ( (next=navigator.north()) != ESDetId(0) && next != startES && nadjacents_north < 2 ) {
+        ++nadjacents_north; 
+        RecHitsMap::iterator strip_it = rechits_map->find(next); 
+        if(!goodStrip(strip_it)) continue;      
+        clusterRecHits.push_back(strip_it->second);
+        if ( nadjacents_north==1 ) strip_1 = next;
+        used_s->insert(strip_it->first);    
+     }
+     // Save two neighbouring strips to the south
+     navigator.home();
+     int nadjacents_south = 0;
+     while ( (next=navigator.south()) != ESDetId(0) && next != startES && nadjacents_south < 2 ) {
+        ++nadjacents_south;   
+        RecHitsMap::iterator strip_it = rechits_map->find(next);   
+        if(!goodStrip(strip_it)) continue;      
+        clusterRecHits.push_back(strip_it->second);
+        if ( nadjacents_south==1 ) strip_2 = next;
+        used_s->insert(strip_it->first);    
+     }
+   }
+   else {
+     std::cout << " Wrong plane number" << plane <<", null cluster will be returned! " << std::endl;
+     return finalcluster;
+   } // end of if
+
+   // strips for position calculation
+   RecHitsMap::iterator strip_it1, strip_it2;
+   if ( strip_1 != ESDetId(0)) {
+     strip_it1 = rechits_map->find(strip_1);
+     recHits_pos.insert(std::make_pair(strip_it1->first, strip_it1->second));  
+   }
+   if ( strip_2 != ESDetId(0) ) {
+     strip_it2 = rechits_map->find(strip_2);
+     recHits_pos.insert(std::make_pair(strip_it2->first, strip_it2->second));  
+   }
+   
+   RecHitsMap::iterator cp;
+   double energy_pos = 0;
+   double x_pos = 0;
+   double y_pos = 0;
+   double z_pos = 0;
+   for (cp = recHits_pos.begin(); cp!=recHits_pos.end(); cp++ ) {
+      double E = cp->second.energy();
+      energy_pos += E; 
+      GlobalPoint position = geom->getPosition(cp->first);
+      x_pos += E * position.x();
+      y_pos += E * position.y();
+      z_pos += E * position.z();     
+   }
+  if(energy_pos>0.) {
+     x_pos /= energy_pos;
+     y_pos /= energy_pos;
+     z_pos /= energy_pos;
+  }
+
+  EcalRecHitCollection::iterator it;
+  double Eclust = 0;
+  int stripscounter = 0;
+
+  for (it=clusterRecHits.begin(); it != clusterRecHits.end(); it++) {
+     Eclust += it->energy();
+     stripscounter++;
+  }
+
+  //Filling PreshowerCluster
+
+  finalcluster.set_x(x_pos);
+  finalcluster.set_y(y_pos);
+  finalcluster.set_z(z_pos);
+
+  finalcluster.set_energy(Eclust);
+  finalcluster.set_plane(plane);
+
+  finalcluster.set_goodcluster(true);
+ 
+  //used for debugging purposes 
+/*
+  cout << "//-------------------------------------------//"<<endl;
+  cout << " ES Cluster is created with " << endl;
+  cout << " energy = " << finalcluster.get_energy() << endl;
+  cout << " plane = " << finalcluster.get_plane() << endl;
+  cout << " stripscounter = "<<stripscounter<< endl;
+  cout << " (x,y,z) = " << "(" << finalcluster.get_x() <<", "<< finalcluster.get_y() <<", "<< finalcluster.get_z()<<")"<< std::endl; 
+  cout << "//-------------------------------------------//"<<endl;
+*/
+
+  return finalcluster;
+
+}

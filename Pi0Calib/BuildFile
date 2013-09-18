@@ -1,0 +1,24 @@
+<!-- -*- XML -*- -->
+<Flags CXXFLAGS=-g>
+<use name=root>
+<use name=FWCore/FWLite>
+<use name=DataFormats/FWLite>
+<use name=DataFormats/DetId>
+<use name=DataFormats/EcalDetId>
+<use name=DataFormats/GeometryVector>
+<use name=PhysicsTools/FWLite>
+<use name=Geometry/CaloTopology>
+<use name=Geometry/EcalAlgo>
+
+
+<export>
+  <use name=root>
+  <use name=FWCore/FWLite>
+  <use name=DataFormats/FWLite>
+  <use name=DataFormats/DetId>
+  <use name=DataFormats/EcalDetId>
+  <use name=DataFormats/GeometryVector>
+  <use name=PhysicsTools/FWLite>
+  <use name=Geometry/CaloTopology>
+  <lib name=AnalysisPi0Calib>
+</export>

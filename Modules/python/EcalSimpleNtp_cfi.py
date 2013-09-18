@@ -1,0 +1,100 @@
+import FWCore.ParameterSet.Config as cms
+
+EcalSimpleNtp = cms.EDFilter("EcalSimpleNtp",
+    OutputFile = cms.untracked.string('EcalNtp.root'),
+    MCTruthCollection = cms.untracked.InputTag("source"),
+
+    nPhysSeeds = cms.untracked.int32(24),
+    myL1SeedName_0 = cms.untracked.string('L1_MinBias_HTT10'),
+    myL1SeedName_1 = cms.untracked.string('L1_SingleJet6'),
+    myL1SeedName_2 = cms.untracked.string('L1_SingleJet10'),
+    myL1SeedName_3 = cms.untracked.string('L1_SingleJet20'),
+    myL1SeedName_4 = cms.untracked.string('L1_SingleJet30'),
+    myL1SeedName_5 = cms.untracked.string('L1_SingleJet40'),
+    myL1SeedName_6 = cms.untracked.string('L1_SingleJet50'),
+    myL1SeedName_7 = cms.untracked.string('L1_SingleJet60'),
+    myL1SeedName_8 = cms.untracked.string('L1_SingleEG1'),
+    myL1SeedName_9 = cms.untracked.string('L1_SingleEG2'),
+    myL1SeedName_10 = cms.untracked.string('L1_SingleEG5'),
+    myL1SeedName_11 = cms.untracked.string('L1_SingleEG8'),
+    myL1SeedName_12 = cms.untracked.string('L1_SingleEG10'),
+    myL1SeedName_13 = cms.untracked.string('L1_SingleEG12'),
+    myL1SeedName_14 = cms.untracked.string('L1_SingleEG15'),
+    myL1SeedName_15 = cms.untracked.string('L1_SingleEG20'),
+    myL1SeedName_16 = cms.untracked.string('L1_SingleIsoEG5'),
+    myL1SeedName_17 = cms.untracked.string('L1_SingleIsoEG8'),
+    myL1SeedName_18 = cms.untracked.string('L1_SingleIsoEG10'),
+    myL1SeedName_19 = cms.untracked.string('L1_SingleIsoEG12'),
+    myL1SeedName_20 = cms.untracked.string('L1_SingleIsoEG15'),
+    myL1SeedName_21 = cms.untracked.string('L1_BscMinBiasOR'),
+    myL1SeedName_22 = cms.untracked.string('L1_SingleForJet4'),
+    myL1SeedName_23 = cms.untracked.string('L1_SingleForJet6'),
+
+    AlCaStreamEBpi0Tag = cms.untracked.InputTag("hltAlCaPi0RegRecHits","pi0EcalRecHitsEB"),
+    AlCaStreamEEpi0Tag = cms.untracked.InputTag("hltAlCaPi0RegRecHits","pi0EcalRecHitsEE"),
+    AlCaStreamESpi0Tag = cms.untracked.InputTag("hltAlCaPi0RegRecHits","pi0EcalRecHitsES"),
+
+    AlCaStreamEBetaTag = cms.untracked.InputTag("hltAlCaEtaRegRecHits","etaEcalRecHitsEB"),
+    AlCaStreamEEetaTag = cms.untracked.InputTag("hltAlCaEtaRegRecHits","etaEcalRecHitsEE"),
+    AlCaStreamESetaTag = cms.untracked.InputTag("hltAlCaEtaRegRecHits","etaEcalRecHitsES"),
+
+    conversions = cms.untracked.InputTag("trackerOnlyConversions::RECO"),
+
+    clusSeedThr = cms.double( 0.15 ),
+    clusSeedThrEndCap = cms.double( .5 ),
+    clusEtaSize = cms.int32( 3 ),
+    clusPhiSize = cms.int32( 3 ),
+    seleXtalMinEnergy = cms.double( -0.5 ),
+    seleXtalMinEnergyEndCap = cms.double( -0.75 ),
+    selePtGamma = cms.double( 0.25 ),
+    selePtPi0 = cms.double( 0.65 ),
+    seleMinvMaxPi0 = cms.double( 0.8 ),
+    seleMinvMinPi0 = cms.double( 0.0 ),
+    seleS4S9Gamma = cms.double( -100000. ),
+    selePi0Iso = cms.double( 100000. ),
+    ptMinForIsolation = cms.double( 1 ),
+    selePi0BeltDR = cms.double( 0.2 ),
+    selePi0BeltDeta = cms.double( 0.05 ),
+
+    selePtGammaEndCap = cms.double( .3),
+    selePtPi0EndCap = cms.double( .8 ),
+    seleS4S9GammaEndCap = cms.double( 0.8 ),
+    seleMinvMaxPi0EndCap = cms.double( 0.8 ),
+    seleMinvMinPi0EndCap = cms.double( 0.02 ),
+    ptMinForIsolationEndCap = cms.double( 0.5 ),
+    selePi0IsoEndCap = cms.double( 1000. ),
+    selePi0BeltDREndCap  = cms.double( 0.2 ),
+    selePi0BeltDetaEndCap  = cms.double( 0.05 ),
+
+region1_Pi0EndCap = cms.double(2),
+selePtGammaPi0EndCap_region1 = cms.double(0.3),
+selePtPi0EndCap_region1 = cms.double(.7),
+
+region2_Pi0EndCap = cms.double(2.5),
+selePtGammaPi0EndCap_region2 = cms.double(0.3),
+selePtPi0EndCap_region2 = cms.double(.7),
+
+selePtGammaPi0EndCap_region3 = cms.double(0.3),
+selePtPi0EndCap_region3 = cms.double(.7),
+
+
+    preshStripEnergyCut      = cms.double(0.0),
+    preshClusterEnergyCut    = cms.double(0.0),
+    preshSeededNstrip        = cms.int32(15),
+    preshNclust              = cms.int32(4),
+    preshCalibPlaneX  = cms.double(1.0),
+    preshCalibPlaneY  = cms.double(0.70),
+    preshCalibGamma   = cms.double(0.024),
+    preshCalibMIP     = cms.double(9.0E-5),
+    debugLevelES      = cms.string(" "),
+                              
+    ParameterLogWeighted = cms.bool( True ),
+    ParameterX0 = cms.double( 0.89 ),
+    ParameterT0_barl = cms.double( 5.7 ),
+    ParameterT0_endc = cms.double( 3.1 ),
+    ParameterT0_endcPresh = cms.double( 1.2 ),
+    ParameterW0 = cms.double( 4.2 )
+
+)
+
+                          

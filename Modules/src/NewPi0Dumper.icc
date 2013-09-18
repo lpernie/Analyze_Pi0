@@ -1,0 +1,2882 @@
+// -*- C++ -*-
+//
+// Package:    NewPi0Dumper
+// Class:      NewPi0Dumper
+// 
+/**\class NewPi0Dumper NewPi0Dumper.cc Analysis/Modules/src/NewPi0Dumper.cc
+
+ Description: [one line class summary]
+
+ Implementation:
+     [Notes on implementation]
+*/
+//
+// Original Author:  Shahram Rahatlou
+//         Created:  Wed Aug 25 10:44:55 CEST 2010
+// $Id: NewPi0Dumper.icc,v 1.1 2013/02/04 13:18:49 lpernie Exp $
+//
+//
+
+
+// system include files
+#include <memory>
+
+// user include files
+#include "FWCore/Framework/interface/Frameworkfwd.h"
+#include "FWCore/Framework/interface/EDAnalyzer.h"
+
+#include "FWCore/Framework/interface/Event.h"
+#include "FWCore/Framework/interface/MakerMacros.h"
+
+#include "FWCore/ParameterSet/interface/ParameterSet.h"
+
+#include "FWCore/Framework/interface/ESHandle.h"
+
+#include <vector>
+#include <iostream>
+#include <utility>
+using std::vector;
+using std::cout;
+using std::endl;
+using std::pair;
+#include <cmath>
+#include<algorithm>
+using std::max_element;
+#include<string>
+#include<set>
+using std::set;
+
+#include "Geometry/CaloTopology/interface/CaloTopology.h"
+#include "DataFormats/EcalDetId/interface/EcalSubdetector.h"
+#include "Geometry/CaloTopology/interface/EcalBarrelHardcodedTopology.h"
+#include "Geometry/CaloTopology/interface/EcalEndcapHardcodedTopology.h"
+#include "Analysis/Pi0Calib/interface/ECALGeometry.h"
+#include "DataFormats/CaloRecHit/interface/CaloCluster.h"
+#include "Analysis/Pi0Calib/interface/EcalCalibMap.h"
+#include "DataFormats/Math/interface/Point3D.h"
+#include "DataFormats/Math/interface/LorentzVector.h"
+#include "DataFormats/EcalRecHit/interface/EcalRecHitCollections.h"
+#include "DataFormats/EcalDetId/interface/EBDetId.h"
+#include "DataFormats/EcalDetId/interface/EEDetId.h"
+#include "DataFormats/EcalDetId/interface/EcalSubdetector.h"
+
+#include "Analysis/Pi0Calib/interface/EcalRecHitCompare.h"
+#include "Analysis/Pi0Calib/interface/PosCalcParams.h"
+#include "Analysis/Pi0Calib/interface/GlobalFunctions.h"
+
+#include "DataFormats/VertexReco/interface/Vertex.h"
+#include "DataFormats/VertexReco/interface/VertexFwd.h"
+
+#include "DataFormats/TrackReco/interface/Track.h"
+#include "DataFormats/TrackReco/interface/TrackFwd.h"
+
+#include "DataFormats/HcalRecHit/interface/HcalRecHitCollections.h"
+#include "RecoCaloTools/MetaCollections/interface/CaloRecHitMetaCollections.h"
+#include "Geometry/Records/interface/CaloGeometryRecord.h"
+#include "Geometry/CaloGeometry/interface/CaloGeometry.h"
+#include "RecoCaloTools/Selectors/interface/CaloConeSelector.h"
+#include "Geometry/CaloGeometry/interface/CaloCellGeometry.h"
+#include "Geometry/CaloGeometry/interface/TruncatedPyramid.h"
+#include "Geometry/TrackerGeometryBuilder/interface/TrackerGeometry.h"
+#include "Geometry/Records/interface/TrackerDigiGeometryRecord.h"
+#include "MagneticField/Engine/interface/MagneticField.h"
+#include "MagneticField/Records/interface/IdealMagneticFieldRecord.h"
+#include "Analysis/Modules/interface/PropagationTools.h"
+
+// Trigger
+#include "DataFormats/L1GlobalTrigger/interface/L1GlobalTriggerReadoutSetupFwd.h"
+#include "DataFormats/L1GlobalTrigger/interface/L1GlobalTriggerReadoutSetup.h"
+#include "DataFormats/L1GlobalTrigger/interface/L1GlobalTriggerReadoutRecord.h"
+#include "CondFormats/L1TObjects/interface/L1GtTriggerMenu.h"
+#include "CondFormats/DataRecord/interface/L1GtTriggerMenuRcd.h"
+
+/// montecarlo
+#include "SimDataFormats/GeneratorProducts/interface/GenEventInfoProduct.h"
+#include "SimDataFormats/GeneratorProducts/interface/HepMCProduct.h"
+#include "SimDataFormats/Track/interface/SimTrack.h"
+#include "SimDataFormats/Track/interface/SimTrackContainer.h"
+#include "SimDataFormats/Vertex/interface/SimVertex.h"
+#include "SimDataFormats/Vertex/interface/SimVertexContainer.h"
+#include "DataFormats/HepMCCandidate/interface/GenParticle.h"
+
+// conversions
+#include "DataFormats/EgammaCandidates/interface/Conversion.h"
+#include "DataFormats/EgammaCandidates/interface/ConversionFwd.h"
+
+#include "DataFormats/JetReco/interface/PFJet.h"
+#include "DataFormats/JetReco/interface/PFJetCollection.h"
+#include "DataFormats/METReco/interface/CaloMETCollection.h"
+#include "DataFormats/METReco/interface/CaloMET.h"
+#include "DataFormats/METReco/interface/PFMET.h"
+#include "DataFormats/METReco/interface/PFMETCollection.h"
+#include "JetMETCorrections/Objects/interface/JetCorrector.h"
+
+#include "RecoEcal/EgammaCoreTools/interface/EcalClusterTools.h"
+
+//Laser and transparency loss
+#include "CalibCalorimetry/EcalLaserAnalyzer/interface/MEEBGeom.h"
+#include "CalibCalorimetry/EcalLaserAnalyzer/interface/MEEEGeom.h"
+#include "DataFormats/Provenance/interface/Timestamp.h"
+
+#include "FWCore/Framework/interface/ModuleFactory.h"
+#include "FWCore/Framework/interface/ESProducer.h"
+
+#include "CondFormats/EcalObjects/interface/EcalLaserAlphas.h"
+#include "CondFormats/EcalObjects/interface/EcalLaserAPDPNRatiosRef.h"
+#include "CondFormats/EcalObjects/interface/EcalLaserAPDPNRatios.h"
+
+#include "CondFormats/DataRecord/interface/EcalLaserAlphasRcd.h"
+#include "CondFormats/DataRecord/interface/EcalLaserAPDPNRatiosRefRcd.h"
+#include "CondFormats/DataRecord/interface/EcalLaserAPDPNRatiosRcd.h"
+
+#include "DataFormats/BeamSpot/interface/BeamSpot.h"
+// root
+#include "TFile.h"
+#include "TTree.h"
+#include "TH1F.h"
+#include "TVector3.h"
+//using math::TVector3;
+
+// #define DEBUG
+
+//
+// class declaration
+//
+
+struct TrackIsoVars {
+   float   ptIso015;
+   int   ntrkIso015;  
+   float   ptIso035;
+   int   ntrkIso035;  
+   float   ptIso040;
+   int   ntrkIso040;  
+   TrackIsoVars() :
+      ptIso015(0.), ntrkIso015(0),
+      ptIso035(0.), ntrkIso035(0),
+      ptIso040(0.), ntrkIso040(0){ }
+};
+
+struct HCALIsoVars {
+  float hcalIso005;
+  float hcalIso010;
+  float hcalIso040;
+  HCALIsoVars() : hcalIso005(0.), hcalIso010(0.), hcalIso040(0.) { }
+};
+
+struct ClusterShape {
+  float s1;
+  float s4;
+  float s9;
+  float s25;
+  float s4s9;
+  float time;
+  float ncry9;
+  float ncry25;
+  int flag;
+
+  // major and minor cluster moments wrt principale axes:
+  float sMaj9;
+  float sMin9;
+  float sMaj25;
+  float sMin25;
+  float sMaj49;
+  float sMin49;
+
+  float transparencyLoss;
+  //float transparencyLossInvertZSide;
+  float laserCorr;
+  float alpha;
+
+  ClusterShape() : s1(-99.), s4(-99.), s9(-99.), s25(-99.), s4s9(-1.), 
+                   time(-9999.), ncry9(-1), ncry25(-1), flag(0.) ,
+                   sMaj9(-99.), sMin9(-99.), 
+                   sMaj25(-99.), sMin25(-99.),
+                   sMaj49(-99.), sMin49(-99.), 
+		   transparencyLoss(-99.),
+		   //transparencyLossInvertZSide(-99.)
+		   laserCorr(-99.), alpha(-99)
+                      { }
+};
+
+#define NPFJETMAX 20
+#define NCRYMAX 1000
+#define NCLUMAX 500
+#define NPI0MAX 400
+#define NCONVMAX 500
+
+using namespace reco;
+
+class NewPi0Dumper : public edm::EDAnalyzer {
+   public:
+      explicit NewPi0Dumper(const edm::ParameterSet&);
+      ~NewPi0Dumper();
+
+
+   private:
+      virtual void beginJob() ;
+      virtual void analyze(const edm::Event&, const edm::EventSetup&);
+      virtual void endJob() ;
+
+      void FillTriggerInfo(const edm::Event&, const edm::EventSetup&);
+      void FillMCInfo(const edm::Event&, const edm::EventSetup&);
+      void FillConversionInfo(const edm::Event&, const edm::EventSetup&);
+      void FillJetMetInfo(const edm::Event&, const edm::EventSetup&);
+      void FillHFInfo(const edm::Event&, const edm::EventSetup&);
+      bool FilterOutScraping(const edm::Event& iEvent, const edm::EventSetup& iSetup);
+
+      template <class DetIdType, class RecHitCollectionType, class IteratorType> 
+         void make3x3Clusters( const RecHitCollectionType* hits, std::vector<CaloCluster>* clusters,
+                               std::vector< ClusterShape >* shapes, edm::Timestamp const & iTime );
+
+  
+      TrackIsoVars computeTrackIsolation(double eta, double phi, const reco::TrackCollection* tracks);
+
+  float getLaserCorrection(DetId const & xid, edm::Timestamp const & iTime,bool invert=false) const;
+  pair<float,float> getTransparencyLoss(DetId const & xid, edm::Timestamp const & iTime,bool invert=false) const;
+  HCALIsoVars  computeHCALIsolation(double eta, double phi, const CaloGeometry* geo,
+                                  const HBHERecHitMetaCollection& hbhe);
+
+      const reco::Track* associateTrk( const reco::CaloCluster* cluster,
+                                       const reco::TrackCollection* tracks,
+                                       const CaloGeometry* geometry,
+                                       const TrackerGeometry* trackerGeom,
+                                       const MagneticField* magField,
+                                       math::XYZPoint& impactPoint,
+                                       float& distance);
+     // MC truth methods : to be moved to a dedicated class
+     // Method for iterative printing of decay chains 
+     bool printChildren(const SimTrack* p, 
+                        std::map<const SimTrack*, std::set<const SimTrack*> > const& ptokids,
+                        std::map<const SimTrack*, const SimVertex*> const& ptovtx,
+                        int level, bool save, int motherGenIndex);
+   
+     // Remove unneeded SimTracks from tables
+     bool pruneKids(const SimTrack* p,
+                    std::map<const SimTrack*, std::set<const SimTrack*> > & decays,
+                    std::map<const SimTrack*, const SimTrack*> & parent,
+                    std::map<const SimTrack*, const SimVertex*> & vertex,
+                    int level);
+
+     // Standard Tree Fill to avoid repeating the same code for the endcap
+     void fillPi0Tree(bool useTracks_, bool useHCAL_, TrackIsoVars &tvar, HCALIsoVars &hvar, 
+                      float dclustrk1, float dclustrk2, const reco::Track* trk1, const reco::Track* trk2, 
+                      math::PtEtaPhiMLorentzVector &pi0P4PV,  std::map<size_t,size_t> &savedCluEB,
+                      math::PtEtaPhiMLorentzVector &g1P4PV, math::PtEtaPhiMLorentzVector &g2P4PV,
+                      std::vector< ClusterShape > &shapes,
+                      const CaloCluster* g1, const CaloCluster* g2, int &nClu, int i, int j);
+
+
+      // ----------member data ---------------------------
+      CaloTopology *ebTopology;         // hardcoded topology
+      CaloTopology *eeTopology;         // hardcoded topology
+      ECALGeometry* geom;               // hardcoded geometry from root file
+      PosCalcParams          PCparams_;
+
+  bool invertEELaserCorrections_;
+      // input tags
+      edm::InputTag EBRecHitCollectionTag_;
+      edm::InputTag EERecHitCollectionTag_;
+      edm::InputTag ESRecHitCollectionTag_;
+      edm::InputTag conversionsTag_;
+  edm::InputTag l1TriggerInput_;
+    edm::InputTag PVTag_;
+      edm::InputTag TracksTag_;
+      edm::InputTag HBHETag_;
+      edm::InputTag HFTag_;
+      edm::InputTag PFJetsTag_ ;
+      edm::InputTag PFMetTag_ ;
+      edm::InputTag CaloMetTag_; 
+  
+      std::string   pfakt5JetCorrectionServiceTag_;
+
+
+      // TTree variables
+      TFile* m_file;
+  TTree* m_tree;
+  std::string outfilename_;
+  
+  bool storeMCTruth_;
+  bool useTracks_;
+  bool useHCAL_;
+  bool goodCollSelection_;
+  bool useBeamSpotPosition_;
+  bool storeConversions_;
+  bool storeTransparencyCorrection_;
+  
+  const EcalLaserAlphas* mAlphas_;
+  const EcalLaserAPDPNRatiosRef* mAPDPNRatiosRef_;
+  const EcalLaserAPDPNRatios* mAPDPNRatios_;  
+
+
+  static const int MAXL1bits = 200;
+  static const int MAXHLTbits = 200;
+  int nL1bits;
+  int L1bits[MAXL1bits];
+  int nL1bitsTech;
+  int L1bitsTech[MAXL1bits];
+
+  int             runn;
+  int             eventn;
+  int             ls;
+  float           iso;
+
+  // primary vertex
+  int nPV;
+  float chi2PV, ndofPV, ntrkPV, xPV, yPV, zPV;
+  
+//   Int_t nCry;
+//   Float_t eCry[NCRYMAX];
+//   Float_t ptCry[NCRYMAX];
+//   Float_t timeCry[NCRYMAX];
+//   Int_t flagCry[NCRYMAX];
+//   Int_t ietaCry[NCRYMAX];
+//   Int_t iphiCry[NCRYMAX];
+//   Int_t iCry[NCRYMAX];
+//   Int_t iSM[NCRYMAX];
+//   Float_t etaCry[NCRYMAX];
+//   Float_t phiCry[NCRYMAX];
+ 
+  Int_t nClu;
+  Float_t S1Clu[NCLUMAX];
+  Float_t S4Clu[NCLUMAX];
+  Float_t S9Clu[NCLUMAX];
+  Float_t S25Clu[NCLUMAX];
+  Float_t etaClu[NCLUMAX];
+  Float_t phiClu[NCLUMAX];
+  Float_t ptClu[NCLUMAX];
+  Float_t timeClu[NCLUMAX];
+  Int_t nCryClu[NCLUMAX];
+  Int_t indexCryClu[NCLUMAX][9];
+  Float_t transparencyLossClu[NCLUMAX];
+  //Float_t transparencyLossCluInvertZSide[NCLUMAX];
+  Float_t laserCorrectionClu[NCLUMAX];
+  Float_t laserAlphaClu[NCLUMAX];
+
+
+  Float_t     ptTrkMatchClu[NCLUMAX];
+  Float_t   distTrkMatchClu[NCLUMAX];
+
+  Int_t flagClu[NCLUMAX];
+  Int_t ietaClu[NCLUMAX];
+  Int_t iphiClu[NCLUMAX];
+  Int_t iCryClu[NCLUMAX];
+  Int_t iSMClu[NCLUMAX];
+  Int_t imodClu[NCLUMAX];
+  Int_t iTTClu[NCLUMAX];
+  Int_t iTTetaClu[NCLUMAX];
+  Int_t iTTphiClu[NCLUMAX];
+  
+  float sMaj9Clu[NCLUMAX];
+  float sMin9Clu[NCLUMAX];
+  float sMaj25Clu[NCLUMAX];
+  float sMin25Clu[NCLUMAX];
+  float sMaj49Clu[NCLUMAX];
+  float sMin49Clu[NCLUMAX];
+
+
+  Int_t nPi0;
+  Float_t ePi0[NPI0MAX];
+  Float_t massPi0[NPI0MAX];
+  Float_t ptPi0[NPI0MAX];
+  Float_t etaPi0[NPI0MAX];
+  Float_t phiPi0[NPI0MAX];
+  Float_t isoPi0[NPI0MAX];
+  Int_t ietaTTPi0[NPI0MAX];
+  Int_t iphiTTPi0[NPI0MAX];
+  Int_t indexClu1Pi0[NPI0MAX];
+  Int_t indexClu2Pi0[NPI0MAX];
+  
+  Float_t   ptIso015Pi0[NPI0MAX];
+  Float_t ntrkIso015Pi0[NPI0MAX];
+  Float_t   ptIso035Pi0[NPI0MAX];
+  Float_t ntrkIso035Pi0[NPI0MAX];
+  Float_t   ptIso040Pi0[NPI0MAX];
+  Float_t ntrkIso040Pi0[NPI0MAX];
+
+  Float_t hcalIso005Pi0[NPI0MAX];
+  Float_t hcalIso010Pi0[NPI0MAX];
+  Float_t hcalIso040Pi0[NPI0MAX];
+
+  Int_t    nPFJet;
+  Float_t  ePFJet[NPFJETMAX];
+  Float_t  ptPFJet[NPFJETMAX];
+  Float_t  ptcorrPFJet[NPFJETMAX];
+  Float_t  etaPFJet[NPFJETMAX];
+  Float_t  phiPFJet[NPFJETMAX];
+
+  Float_t  sumetPFMet;
+  Float_t  ptPFMet;
+  Float_t  phiPFMet;
+
+  Float_t  sumetMet;
+  Float_t  ptMet;
+  Float_t  phiMet;
+
+  // trigger and conds foir GOODCOLL in MC
+  bool isBSC;
+  bool isGoodPrimaryVertex;
+  bool notScraping;
+  bool isHFMinBias;
+  bool isGOODCOLL;
+
+  // HF info for min bias analysis
+  float eHfNeg;
+  float eHfNegTime;
+  float eHfPos;
+  float eHfPosTime;
+  int eHfNcounts;
+  int eHfPcounts;
+  
+  // mc truth
+  static const int nMaxMC = 350;
+  static const int kPhoton = 22;
+  static const int kPi0 = 111;
+  static const int kElectron = 11;
+  Int_t   nMC;
+  Int_t   pdgIdMC[nMaxMC];
+  Int_t   statusMC[nMaxMC];
+  Int_t   motherIDMC[nMaxMC];
+  Int_t   motherIndexMC[nMaxMC];
+  Float_t ptMC[nMaxMC];
+  Float_t eMC[nMaxMC];
+  Float_t etaMC[nMaxMC];
+  Float_t phiMC[nMaxMC];
+  bool    convertedMC[nMaxMC]; 
+
+  // SIM particles (those not already in MC particles list)
+  // help to study in-flight decays of Kshort, Lambda etc.
+  // These are also useful to study photon conversions 
+  static const int nMaxSIM = 350;
+  Int_t nSIM;
+  Int_t pdgIdSIM[nMaxSIM];
+  Int_t statusSIM[nMaxSIM];
+  //Int_t motherIDSIM[nMaxSIM]; 
+  Int_t motherGenIndexSIM[nMaxSIM]; 
+  Float_t ptSIM[nMaxSIM];
+  Float_t eSIM[nMaxSIM];
+  Float_t etaSIM[nMaxSIM];
+  Float_t phiSIM[nMaxSIM];
+  Float_t rSIM[nMaxSIM];
+  Float_t zSIM[nMaxSIM];
+
+// Reconstructed photon conversions
+  Int_t nconvPhot;
+  Float_t chi2convPhot[NCONVMAX];
+  Float_t ndofconvPhot[NCONVMAX];
+  Float_t rconvPhot[NCONVMAX];
+  Float_t phiconvPhot[NCONVMAX];
+  Float_t zconvPhot[NCONVMAX];
+  Int_t ntrkconvPhot[NCONVMAX];
+  Float_t eovpconvPhot[NCONVMAX];
+  Float_t etaecalconvPhot[NCONVMAX];
+  Float_t phiecalconvPhot[NCONVMAX];
+  Float_t energyecalconvPhot[NCONVMAX];
+  // Extra conversion ID - pairwise
+  Int_t algoconvPhot[NCONVMAX];
+  Float_t d0convPhot[NCONVMAX];
+  Float_t detaecalconvPhot[NCONVMAX];
+  Float_t dphiecalconvPhot[NCONVMAX];
+  Float_t dphivtxconvPhot[NCONVMAX];
+  Float_t pairsepconvPhot[NCONVMAX];
+  Float_t pairmassconvPhot[NCONVMAX];
+  // Extra conversion ID - trackwise
+  Float_t trchi21convPhot[NCONVMAX];
+  Float_t trndof1convPhot[NCONVMAX];
+  Int_t trqual1convPhot[NCONVMAX];
+  Float_t trpt1convPhot[NCONVMAX];
+  Float_t trerr1convPhot[NCONVMAX];
+  Float_t trchi22convPhot[NCONVMAX];
+  Float_t trndof2convPhot[NCONVMAX];
+  Int_t trqual2convPhot[NCONVMAX];
+  Float_t trpt2convPhot[NCONVMAX];
+  Float_t trerr2convPhot[NCONVMAX];
+  Float_t phi1convPhot[NCONVMAX];
+  Float_t eta1convPhot[NCONVMAX];
+  Float_t p1convPhot[NCONVMAX];
+  Float_t phi2convPhot[NCONVMAX];
+  Float_t eta2convPhot[NCONVMAX];
+  Float_t p2convPhot[NCONVMAX];
+
+  // cuts
+  Float_t ptpi0Cut_, masspi0Cut_, ptCluCut_, s1CluCut_, s4s9CluCut_;
+
+
+};
+
+//
+// constants, enums and typedefs
+//
+
+//
+// static data member definitions
+//
+
+//
+// constructors and destructor
+//
+NewPi0Dumper::NewPi0Dumper(const edm::ParameterSet& ps)
+{
+   //now do what ever initialization is needed
+
+  // collections to fetch
+  EBRecHitCollectionTag_= ps.getUntrackedParameter<edm::InputTag>("EBRecHitCollectionTag");
+  EERecHitCollectionTag_= ps.getUntrackedParameter<edm::InputTag>("EERecHitCollectionTag");
+  ESRecHitCollectionTag_= ps.getUntrackedParameter<edm::InputTag>("ESRecHitCollectionTag");
+  conversionsTag_       = ps.getUntrackedParameter<edm::InputTag>("conversionsTag");
+  outfilename_          = ps.getUntrackedParameter<std::string>("OutputFile","NewPi0Tuple.root");
+  storeMCTruth_         = ps.getUntrackedParameter<bool>("StoreMCTruth",false);
+  storeConversions_     = ps.getUntrackedParameter<bool>("StoreConversions",false);
+  useTracks_ = ps.getUntrackedParameter<bool>("useTracks",false);
+  useHCAL_ = ps.getUntrackedParameter<bool>("useHCAL",false);
+  goodCollSelection_ = ps.getUntrackedParameter<bool>("goodCollSelection",false);
+  useBeamSpotPosition_ = ps.getUntrackedParameter<bool>("useBeamSpotPosition",true);
+  storeTransparencyCorrection_ = ps.getUntrackedParameter<bool>("StoreTransparencyCorrection",false);
+  invertEELaserCorrections_ = ps.getUntrackedParameter<bool>("InvertEELaserCorrections",true);
+  PVTag_                = ps.getUntrackedParameter<edm::InputTag>("PrimaryVertexTag",
+                                               edm::InputTag("hiSelectedVertex"));
+  TracksTag_            = ps.getUntrackedParameter<edm::InputTag>("TracksTag",
+                                               edm::InputTag("hiGlobalPrimTracks"));
+  HBHETag_              = ps.getUntrackedParameter<edm::InputTag>("HBHETag",
+                                               edm::InputTag("hbhereco"));
+  HFTag_      = ps.getUntrackedParameter<edm::InputTag>( "HFTag",edm::InputTag("hfreco") );
+  PFJetsTag_  = ps.getUntrackedParameter<edm::InputTag>("PFJetsTag", edm::InputTag("ak5PFJets"));
+  PFMetTag_   = ps.getUntrackedParameter<edm::InputTag>("PFMetTag", edm::InputTag("pfMet"));
+  l1TriggerInput_ = ps.getUntrackedParameter<edm::InputTag>("L1TriggerTag", edm::InputTag("hltGtDigis"));
+  //CaloMetTag_  = ps.getUntrackedParameter<edm::InputTag>("CaloMetTag", edm::InputTag("met"));
+                                              
+  //pfakt5JetCorrectionServiceTag_  
+    //= ps.getUntrackedParameter<std::string>("pfakt5JetCorrectionService","ak5PFL2L3");
+
+
+
+  ptpi0Cut_             = ps.getUntrackedParameter<double>("ptpi0Cut", 0.700);
+  masspi0Cut_           = ps.getUntrackedParameter<double>("masspi0Cut", 0.35);
+  s1CluCut_             = ps.getUntrackedParameter<double>("s1CluCut", 0.150);
+  ptCluCut_             = ps.getUntrackedParameter<double>("ptCluCut", 0.300);
+  s4s9CluCut_           = ps.getUntrackedParameter<double>("s4s9CluCut", 0.6);
+
+  mAPDPNRatiosRef_  = 0;
+  mAPDPNRatios_ = 0;
+  mAlphas_ = 0;
+
+  ebTopology = new CaloTopology();  
+  eeTopology = new CaloTopology();  
+  EcalBarrelHardcodedTopology* ebHCTopology=new EcalBarrelHardcodedTopology();
+  EcalEndcapHardcodedTopology* eeHCTopology=new EcalEndcapHardcodedTopology();
+  ebTopology->setSubdetTopology(DetId::Ecal,EcalBarrel,ebHCTopology);
+  eeTopology->setSubdetTopology(DetId::Ecal,EcalEndcap,eeHCTopology);
+
+  TFile* f = TFile::Open("caloGeometry.root");
+  geom = ECALGeometry::getGeometry(f);
+
+   PCparams_.param_LogWeighted_ = true;
+   PCparams_.param_T0_barl_     = 5.7;
+   PCparams_.param_T0_endc_     = 3.1;
+   PCparams_.param_T0_endcES_   = 1.2;
+   PCparams_.param_W0_          = 4.2;
+   PCparams_.param_X0_          = 0.89;
+
+}
+
+
+NewPi0Dumper::~NewPi0Dumper()
+{
+ 
+   // do anything here that needs to be done at desctruction time
+   // (e.g. close files, deallocate resources etc.)
+   delete geom;
+}
+
+
+//
+// member functions
+//
+
+
+// ------------ method called once each job just before starting event loop  ------------
+void 
+NewPi0Dumper::beginJob()
+{
+   
+  m_file = new TFile(outfilename_.c_str(),"RECREATE");
+  m_file->cd();
+  m_tree = new TTree("h1","Pi0 Analysis Tree");
+
+  // GENERAL block branches
+  m_tree->Branch("Run",&runn,"Run/I");
+  m_tree->Branch("Event",&eventn,"Event/I");
+  m_tree->Branch("LumiSection",&ls,"LumiSection/I");
+ 
+  /// trigger variables
+  m_tree->Branch("nL1bits",&nL1bits,"nL1bits/I");
+  m_tree->Branch("L1bits",L1bits,"L1bits[nL1bits]/I");
+  m_tree->Branch("nL1bitsTech",&nL1bitsTech,"nL1bitsTech/I");
+  m_tree->Branch("L1bitsTech",L1bitsTech,"L1bitsTech[nL1bitsTech]/I");
+
+  m_tree->Branch("isBSC",&isBSC,"isBSC/O");
+  m_tree->Branch("isGoodPrimaryVertex",&isGoodPrimaryVertex,"isGoodPrimaryVertex/O");
+  m_tree->Branch("notScraping",&notScraping,"notScraping/O");
+  m_tree->Branch("isHFMinBias",&isHFMinBias,"isHFMinBias/O");
+  m_tree->Branch("isGOODCOLL",&isGOODCOLL,"isGOODCOLL/O");
+  m_tree->Branch("eHfNeg",&eHfNeg,"eHfNeg/F");
+  m_tree->Branch("eHfPos",&eHfPos,"eHfPos/F");
+  m_tree->Branch("eHfNegTime",&eHfNegTime,"eHfNegTime/F");
+  m_tree->Branch("eHfPosTime",&eHfPosTime,"eHfPosTime/F");
+  m_tree->Branch("eHfNcounts",&eHfNcounts,"eHfNcounts/I");
+  m_tree->Branch("eHfPcounts",&eHfPcounts,"eHfPcounts/I");
+
+  m_tree->Branch("nPV",&nPV,"nPV/I");
+  m_tree->Branch("xPV",&xPV,"xPV/F");
+  m_tree->Branch("yPV",&yPV,"yPV/F");
+  m_tree->Branch("zPV",&zPV,"zPV/F");
+  m_tree->Branch("chi2PV",&chi2PV,"chi2PV/F");
+  m_tree->Branch("ndofPV",&ndofPV,"ndofPV/F");
+  m_tree->Branch("ntrkPV",&ntrkPV,"ntrkPV/F");
+
+//   // jets
+//   m_tree->Branch("nPFJet",&nPFJet, "nPFJet/I");
+//   m_tree->Branch("ePFJet",&ePFJet, "ePFJet[nPFJet]/F");
+//   m_tree->Branch("ptPFJet",&ptPFJet, "ptPFJet[nPFJet]/F");
+//   m_tree->Branch("ptcorrPFJet",&ptcorrPFJet, "ptcorrPFJet[nPFJet]/F");
+//   m_tree->Branch("etaPFJet",&etaPFJet, "etaPFJet[nPFJet]/F");
+//   m_tree->Branch("phiPFJet",&phiPFJet, "phiPFJet[nPFJet]/F");
+
+//   // met
+//   m_tree->Branch("sumetPFMet",&sumetPFMet, "sumetPFMet/F");
+//   m_tree->Branch("ptPFMet",&ptPFMet, "ptPFMet/F");
+//   m_tree->Branch("phiPFMet",&phiPFMet, "phiPFMet/F");
+//   m_tree->Branch("sumetMet",&sumetMet, "sumetMet/F");
+//   m_tree->Branch("ptMet",&ptMet, "ptMet/F");
+//   m_tree->Branch("phiMet",&phiMet, "phiMet/F");
+ 
+  // cluster variables
+  m_tree->Branch("nClu",&nClu,"nClu/I");
+  m_tree->Branch("ptClu",&ptClu,"ptClu[nClu]/F");
+  m_tree->Branch("etaClu",&etaClu,"etaClu[nClu]/F");
+  m_tree->Branch("phiClu",&phiClu,"phiClu[nClu]/F");
+  m_tree->Branch("S1Clu",&S1Clu,"S1Clu[nClu]/F");
+  m_tree->Branch("S4Clu",&S4Clu,"S4Clu[nClu]/F");
+  m_tree->Branch("S9Clu",&S9Clu,"S9Clu[nClu]/F");
+  m_tree->Branch("S25Clu",&S25Clu,"S25Clu[nClu]/F");
+  m_tree->Branch("timeClu",&timeClu,"timeClu[nClu]/F");
+  m_tree->Branch("nCryClu",&nCryClu,"nCryClu[nClu]/I");
+  m_tree->Branch("flagClu",&flagClu,"flagClu[nClu]/I");
+
+  m_tree->Branch("ietaClu",&ietaClu,"ietaClu[nClu]/I");
+  m_tree->Branch("iphiClu",&iphiClu,"iphiClu[nClu]/I");
+  m_tree->Branch("iCryClu",&iCryClu,"iCryClu[nClu]/I");
+  m_tree->Branch("iSMClu",&iSMClu,"iSMClu[nClu]/I");
+  m_tree->Branch("imodClu",&imodClu,"imodClu[nClu]/I");
+  m_tree->Branch("iTTClu",&iTTClu,"iTTClu[nClu]/I");
+  m_tree->Branch("iTTetaClu",&iTTetaClu,"iTTetaClu[nClu]/I");
+  m_tree->Branch("iTTphiClu",&iTTphiClu,"iTTphiClu[nClu]/I");
+
+  m_tree->Branch("ptTrkMatchClu",&ptTrkMatchClu,"ptTrkMatchClu[nClu]/F");
+  m_tree->Branch("distTrkMatchClu",&distTrkMatchClu,"distTrkMatchClu[nClu]/F");
+
+  m_tree->Branch("sMaj9Clu", &sMaj9Clu, "sMaj9Clu[nClu]/F");
+  m_tree->Branch("sMaj25Clu",&sMaj25Clu,"sMaj25Clu[nClu]/F");
+  m_tree->Branch("sMaj49Clu",&sMaj49Clu,"sMaj49Clu[nClu]/F");
+  m_tree->Branch("sMin9Clu", &sMin9Clu, "sMin9Clu[nClu]/F");
+  m_tree->Branch("sMin25Clu",&sMin25Clu,"sMin25Clu[nClu]/F");
+  m_tree->Branch("sMin49Clu",&sMin49Clu,"sMin49Clu[nClu]/F");
+  m_tree->Branch("transparencyLossClu",&transparencyLossClu,"transparencyLossClu[nClu]/F");
+  //m_tree->Branch("transparencyLossCluInvertZSide",&transparencyLossCluInvertZSide,"transparencyLossCluInvertZSide[nClu]/F");
+  m_tree->Branch("laserCorrectionClu",&laserCorrectionClu,"laserCorrectionClu[nClu]/F");
+  m_tree->Branch("laserAlphaClu",&laserAlphaClu,"laserAlphaClu[nClu]/F");
+
+  // pi0 variables
+  m_tree->Branch("nPi0",&nPi0,"nPi0/I");
+  m_tree->Branch("massPi0",&massPi0,"massPi0[nPi0]/F");
+  m_tree->Branch("ePi0",&ePi0,"ePi0[nPi0]/F");
+  m_tree->Branch("ptPi0",&ptPi0,"ptPi0[nPi0]/F");
+  m_tree->Branch("etaPi0",&etaPi0,"etaPi0[nPi0]/F");
+  m_tree->Branch("phiPi0",&phiPi0,"phiPi0[nPi0]/F");
+  m_tree->Branch("indexClu1Pi0",&indexClu1Pi0,"indexClu1Pi0[nPi0]/I");
+  m_tree->Branch("indexClu2Pi0",&indexClu2Pi0,"indexClu2Pi0[nPi0]/I");
+  m_tree->Branch("ptIso015Pi0",&ptIso015Pi0,"ptIso015Pi0[nPi0]/F");
+  m_tree->Branch("ntrkIso015Pi0",&ntrkIso015Pi0,"ntrkIso015Pi0[nPi0]/F");
+  m_tree->Branch("ptIso035Pi0",&ptIso035Pi0,"ptIso035Pi0[nPi0]/F");
+  m_tree->Branch("ntrkIso035Pi0",&ntrkIso035Pi0,"ntrkIso035Pi0[nPi0]/F");
+  m_tree->Branch("ptIso040Pi0",&ptIso040Pi0,"ptIso040Pi0[nPi0]/F");
+  m_tree->Branch("ntrkIso040Pi0",&ntrkIso040Pi0,"ntrkIso040Pi0[nPi0]/F");
+  m_tree->Branch("hcalIso005Pi0",&hcalIso005Pi0,"hcalIso005Pi0[nPi0]/F");
+  m_tree->Branch("hcalIso010Pi0",&hcalIso010Pi0,"hcalIso010Pi0[nPi0]/F");
+  m_tree->Branch("hcalIso040Pi0",&hcalIso040Pi0,"hcalIso040Pi0[nPi0]/F");
+  //m_tree->Branch("",&,"[nPi0]/F");
+
+  // converted photons
+  if(storeConversions_) {
+     m_tree->Branch("nconvPhot",&nconvPhot,"nconvPhot/I");
+     m_tree->Branch("chi2convPhot",&chi2convPhot,"chi2convPhot[nconvPhot]/F");
+     m_tree->Branch("ndofconvPhot",&ndofconvPhot,"ndofconvPhot[nconvPhot]/F");
+     m_tree->Branch("rconvPhot",&rconvPhot,"rconvPhot[nconvPhot]/F");
+     m_tree->Branch("phiconvPhot",&phiconvPhot,"phiconvPhot[nconvPhot]/F");
+     m_tree->Branch("zconvPhot",&zconvPhot,"zconvPhot[nconvPhot]/F");
+     m_tree->Branch("ntrkconvPhot",&ntrkconvPhot,"ntrkconvPhot[nconvPhot]/I");
+//   m_tree->Branch("eovpconvPhot",&eovpconvPhot,"eovpconvPhot[nconvPhot]/F");
+//   m_tree->Branch("etaecalconvPhot",&etaecalconvPhot,"etaecalconvPhot[nconvPhot]/F");
+//   m_tree->Branch("phiecalconvPhot",&phiecalconvPhot,"phiecalconvPhot[nconvPhot]/F");
+//   m_tree->Branch("eecalconvPhot",&energyecalconvPhot,"energyecalconvPhot[nconvPhot]/F");
+     m_tree->Branch("algoconvPhot",&algoconvPhot,"algoconvPhot[nconvPhot]/I");
+     m_tree->Branch("d0convPhot",&d0convPhot,"d0convPhot[nconvPhot]/F");
+     m_tree->Branch("detaecalconvPhot",&detaecalconvPhot,"detaecalconvPhot[nconvPhot]/F");
+     m_tree->Branch("dphiecalconvPhot",&dphiecalconvPhot,"dphiecalconvPhot[nconvPhot]/F");
+     m_tree->Branch("dphivtxconvPhot",&dphivtxconvPhot,"dphivtxconvPhot[nconvPhot]/F");
+     m_tree->Branch("pairsepconvPhot",&pairsepconvPhot,"pairsepconvPhot[nconvPhot]/F");
+     m_tree->Branch("pairmassconvPhot",&pairmassconvPhot,"pairmassconvPhot[nconvPhot]/F");
+
+     m_tree->Branch("trchi21convPhot",&trchi21convPhot,"trchi21convPhot[nconvPhot]/F");
+     m_tree->Branch("trndof1convPhot",&trndof1convPhot,"trndof1convPhot[nconvPhot]/F");
+     m_tree->Branch("trqual1convPhot",&trqual1convPhot,"trqual1convPhot[nconvPhot]/I");
+     m_tree->Branch("trpt1convPhot",&trpt1convPhot,"trpt1convPhot[nconvPhot]/F");
+     m_tree->Branch("trerr1convPhot",&trerr1convPhot,"trerr1convPhot[nconvPhot]/F");
+     m_tree->Branch("phi1convPhot",&phi1convPhot,"phi1convPhot[nconvPhot]/F");
+     m_tree->Branch("eta1convPhot",&eta1convPhot,"eta1convPhot[nconvPhot]/F");
+     m_tree->Branch("p1convPhot",&p1convPhot,"p1convPhot[nconvPhot]/F");
+
+     m_tree->Branch("trchi22convPhot",&trchi22convPhot,"trchi22convPhot[nconvPhot]/F");
+     m_tree->Branch("trndof2convPhot",&trndof2convPhot,"trndof2convPhot[nconvPhot]/F");
+     m_tree->Branch("trqual2convPhot",&trqual2convPhot,"trqual2convPhot[nconvPhot]/I");
+     m_tree->Branch("trpt2convPhot",&trpt2convPhot,"trpt2convPhot[nconvPhot]/F");
+     m_tree->Branch("trerr2convPhot",&trerr2convPhot,"trerr2convPhot[nconvPhot]/F");
+     m_tree->Branch("phi2convPhot",&phi2convPhot,"phi2convPhot[nconvPhot]/F");
+     m_tree->Branch("eta2convPhot",&eta2convPhot,"eta2convPhot[nconvPhot]/F");
+     m_tree->Branch("p2convPhot",&p2convPhot,"p2convPhot[nconvPhot]/F");
+  }
+
+  // mc truth
+  if(storeMCTruth_) {
+     m_tree->Branch( "nMC",           &nMC,          "nMC/I");
+     m_tree->Branch( "pdgIdMC",       pdgIdMC,       "pdgIdMC[nMC]/I");
+     m_tree->Branch( "statusMC",      statusMC,      "statusMC[nMC]/I");
+     m_tree->Branch( "motherIDMC",    motherIDMC,    "motherIDMC[nMC]/I");
+     m_tree->Branch( "motherIndexMC", motherIndexMC, "motherIndexMC[nMC]/I");
+     m_tree->Branch( "ptMC",          ptMC,          "ptMC[nMC]/F");
+     m_tree->Branch( "eMC",           eMC,           "eMC[nMC]/F");
+     m_tree->Branch( "etaMC",         etaMC,         "etaMC[nMC]/F");
+     m_tree->Branch( "phiMC",         phiMC,         "phiMC[nMC]/F");
+     m_tree->Branch( "convertedMC",   convertedMC,   "convertedMC[nMC]/O");
+    
+     m_tree->Branch("nSIM",&nSIM,"nSIM/I");
+     m_tree->Branch("pdgIdSIM",&pdgIdSIM,"pdgIdSIM[nSIM]/I");
+     m_tree->Branch("statusSIM",&statusSIM,"statusSIM[nSIM]/I");
+     m_tree->Branch("motherGenIndexSIM",&motherGenIndexSIM,"motherGenIndexSIM[nSIM]/I");
+     m_tree->Branch("ptSIM ",&ptSIM ,"ptSIM[nSIM]/F");
+     m_tree->Branch("eSIM  ",&eSIM  ,"eSIM[nSIM]/F");
+     m_tree->Branch("etaSIM",&etaSIM,"etaSIM[nSIM]/F");
+     m_tree->Branch("phiSIM",&phiSIM,"phiSIM[nSIM]/F");
+     m_tree->Branch("rSIM",&rSIM,"rSIM[nSIM]/F");
+     m_tree->Branch("zSIM",&zSIM,"zSIM[nSIM]/F");
+  }
+  
+}
+
+// ------------ method called once each job just after ending the event loop  ------------
+void 
+NewPi0Dumper::endJob() {
+  m_file->Write();
+  m_file->Close();
+  //m_file->Delete();
+}
+
+// ------------ method called to for each event  ------------
+void
+NewPi0Dumper::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
+{
+   using namespace edm;
+   using namespace reco;
+
+      // tree variables
+      runn = iEvent.id().run();
+      eventn = iEvent.id().event();
+      ls = iEvent.luminosityBlock();
+
+      //cout << "event number = " << eventn << endl;
+
+      if(storeMCTruth_) FillMCInfo(iEvent, iSetup);
+      if(storeConversions_) FillConversionInfo(iEvent, iSetup);
+
+      FillTriggerInfo(iEvent, iSetup);
+
+      chi2PV = ndofPV = ntrkPV = ndofPV = -1.;
+      xPV = yPV = zPV = 0.;
+      TVector3 posPV(0.,0.,0.);
+      isGoodPrimaryVertex = true;
+      notScraping = true;
+	  
+      if (goodCollSelection_)
+	{
+      // primary vertices
+	  Handle<reco::VertexCollection> pvHandle;
+	  iEvent.getByLabel ( PVTag_, pvHandle);
+	  //cout << "#PV in this event: " << pvHandle->size() << endl;
+	  
+
+	  //if(pvHandle->size()>1) cout << "event with 2 PV! using the 1st one" << endl;
+	  
+
+	  if(pvHandle->size()>0) {
+	    reco::VertexCollection::const_iterator it = pvHandle->begin();
+	    posPV = TVector3( it->x(),  it->y(), it->z() );
+	    xPV = it->x();
+	    yPV = it->y();
+	    zPV = it->z();
+	    chi2PV = it->chi2();
+	    ndofPV = it->ndof();
+	    ntrkPV = it->tracksSize();
+	    
+	    isGoodPrimaryVertex = (! it->isFake()) && it->ndof() > 4 && fabs(it->z()) <= 15. && it->position().Rho() <= 2.;
+	  }
+	  notScraping = FilterOutScraping(iEvent,iSetup);
+	  
+	  // HF info for GOODCOLL
+	  FillHFInfo(iEvent, iSetup);
+	  isGOODCOLL = (  isBSC || (isGoodPrimaryVertex && notScraping) || isHFMinBias  ) ;
+	}
+      else
+	{
+	  isGOODCOLL=1;
+	}
+
+      if (!goodCollSelection_ && useBeamSpotPosition_)
+	{
+	  BeamSpot beamSpot;
+	  edm::Handle<BeamSpot> beamSpotHandle;
+	  iEvent.getByLabel("offlineBeamSpot", beamSpotHandle);
+	  beamSpot = *beamSpotHandle;
+// 	  if ( beamSpotHandle.isValid() )
+// 	    {
+
+	      
+// 	    } 
+// 	  else
+// 	    {
+// 	      edm::LogInfo("NewPi0Dumper")
+// 		<< "No beam spot available from EventSetup \n";
+// 	    }
+
+	  xPV = beamSpot.x0();
+	  yPV = beamSpot.y0();
+	  zPV = beamSpot.z0();
+	  //	  std::cout << "BS: x " << beamSpot.x0() << " y " << beamSpot.y0() << " z " << beamSpot.z0() << std::endl;
+	}
+      
+/**
+      cout << "isBSC: " << isBSC << " isGoodPrimaryVertex: " << isGoodPrimaryVertex
+           << " notScraping: " << notScraping << " isHFMinBias: " << isHFMinBias
+           << endl;
+**/
+
+      // JetMet
+      //FillJetMetInfo(iEvent, iSetup);
+
+      // tracks in the event
+      Handle<reco::TrackCollection> tracksHandle;
+      if (useTracks_)
+	iEvent.getByLabel(TracksTag_,tracksHandle);
+
+      // get HCAL info
+
+      Handle<HBHERecHitCollection> hbheHandle;
+      const HBHERecHitCollection* mhbhe = 0;
+      if (useHCAL_)
+	{
+	  iEvent.getByLabel(HBHETag_, hbheHandle);
+	  mhbhe = hbheHandle.product();
+	}
+
+      // EB rechits
+      Handle< EBRecHitCollection > ebHandle;
+      iEvent.getByLabel ( EBRecHitCollectionTag_, ebHandle);
+      const EBRecHitCollection* hits = ebHandle.product();
+      
+      // get calo geometry
+      edm::ESHandle<CaloGeometry> geoHandle;
+      iSetup.get<CaloGeometryRecord>().get(geoHandle);
+      const CaloGeometry* geometry = geoHandle.product();
+
+      // stuff needed for track propagation
+      const TrackerGeometry* trackerGeom = 0;
+      const MagneticField* magField = 0;
+      if (useTracks_)
+	{
+	  edm::ESHandle<TrackerGeometry> trackerGeomHandle;
+	  edm::ESHandle<MagneticField> magFieldHandle;
+	  iSetup.get<TrackerDigiGeometryRecord>().get( trackerGeomHandle );
+	  iSetup.get<IdealMagneticFieldRecord>().get( magFieldHandle );
+	  trackerGeom = trackerGeomHandle.product();
+	  magField = magFieldHandle.product();
+	}
+
+      if (storeTransparencyCorrection_)
+	{
+	  edm::ESHandle <EcalLaserAPDPNRatiosRef> apdPnRef;
+	  iSetup.get<EcalLaserAPDPNRatiosRefRcd>().get(apdPnRef);
+	  mAPDPNRatiosRef_=apdPnRef.product();
+
+	  edm::ESHandle <EcalLaserAPDPNRatios> apdPn;
+	  iSetup.get<EcalLaserAPDPNRatiosRcd>().get(apdPn);
+	  mAPDPNRatios_=apdPn.product();
+
+	  edm::ESHandle <EcalLaserAlphas> alpha;
+	  iSetup.get<EcalLaserAlphasRcd>().get(alpha);
+	  mAlphas_=alpha.product();
+	}
+
+      // 3x3 clusters
+      std::vector< CaloCluster > clusters; // contains the output clusters
+      std::vector< ClusterShape > shapes; // contains the output clusters
+      make3x3Clusters<EBDetId,EBRecHitCollection,EBRecHitCollection::const_iterator>( hits, &clusters, &shapes, iEvent.time());
+      //      std::cout << "+++ Clusters done" << std::endl;
+
+      //cout << endl << "--- EB::clusters.size() = " << clusters.size() << endl;
+
+      // keep track of clusters used to make pi0 candidates
+      std::map<size_t,size_t> savedCluEB;
+      nClu = 0;
+
+      // loop over clusters to make Pi0
+      nPi0 = 0;
+      for(size_t i=0; i< clusters.size(); ++i) {
+
+        const CaloCluster* g1 = &(clusters[i]);
+
+        // track association
+        math::XYZPoint impact1(999.,999.,999.);
+        float dclustrk1(9999.);
+	const reco::Track* trk1 =0;
+	if (useTracks_)
+	  trk1 = associateTrk( &(*g1), tracksHandle.product(), 
+                                                geometry, trackerGeom, magField,impact1, dclustrk1);  
+
+        // 2nd loop over clusters
+        for(size_t j=i+1; j<clusters.size(); ++j) 
+        {
+           // only store up to max number pi0 or clusters
+           if(nPi0>= NPI0MAX/2 || nClu >= NCLUMAX/2) 
+           {
+              //cout << "No more space in the arrays: nPi0: " << nPi0
+              //     << "  nClu: " << nClu << endl;
+              continue;
+           }
+
+             const CaloCluster* g2 = &(clusters[j]);           
+             // using the origin
+             math::PtEtaPhiMLorentzVector g1P4( g1->energy()/cosh(g1->eta()), g1->eta(), g1->phi(), 0. );
+             math::PtEtaPhiMLorentzVector g2P4( g2->energy()/cosh(g2->eta()), g2->eta(), g2->phi(), 0. );
+             math::PtEtaPhiMLorentzVector pi0P4 = g1P4 + g2P4;
+
+             // use PV 
+             TVector3 tmpV( g1->x()-xPV, g1->y()-yPV, g1->z()-zPV);
+             math::PtEtaPhiMLorentzVector g1P4PV( g1->energy()/cosh(tmpV.Eta()), 
+                                                  tmpV.Eta(), tmpV.Phi(), 0. );
+
+             tmpV = TVector3( g2->x()-xPV, g2->y()-yPV, g2->z()-zPV);
+             math::PtEtaPhiMLorentzVector g2P4PV( g2->energy()/cosh(tmpV.Eta()), 
+                                                  tmpV.Eta(), tmpV.Phi(), 0. );
+             math::PtEtaPhiMLorentzVector pi0P4PV = g1P4PV + g2P4PV;
+
+             // basic selection to reduce combinatorics
+             if( pi0P4PV.mass() > masspi0Cut_) continue;
+             if(pi0P4PV.pt() < ptpi0Cut_) continue;
+
+             // use candidates in the signal mass window
+             //if(pi0P4.mass()<0.095 || pi0P4.mass()>0.175) continue;
+
+
+             // compute isolation
+	     TrackIsoVars tvar;
+	     HCALIsoVars hvar;	     
+	     if (useTracks_)
+	       tvar = computeTrackIsolation(pi0P4.eta(), pi0P4.phi(), tracksHandle.product());
+	     if (useHCAL_)
+	       hvar = computeHCALIsolation(pi0P4.eta(), pi0P4.phi(),geometry, HBHERecHitMetaCollection(*mhbhe));
+
+             // track association for 2nd leg
+             math::XYZPoint impact2(999.,999.,999.);
+             float dclustrk2(9999.);
+             const reco::Track* trk2 = 0;
+	     if (useTracks_)
+	       trk2 = associateTrk( &(*g2), tracksHandle.product(), 
+                                                     geometry, trackerGeom, magField,impact2, dclustrk2);  
+
+
+           fillPi0Tree(useTracks_, useHCAL_, tvar, hvar, 
+                      dclustrk1, dclustrk2, trk1, trk2, 
+                      pi0P4PV, savedCluEB,
+                      g1P4PV, g2P4PV,
+                      shapes,
+                      g1, g2, nClu, i, j);
+
+
+#ifdef DEBUG
+            printf("iPi0: %2d  pi0 mass: %1.3f pt: %1.3f eta: %1.3f phi %1.3f\n",
+                   nPi0, pi0P4.mass(),pi0P4.pt(), pi0P4.eta(),pi0P4.phi());
+
+            float pttrk = trk1 ? trk1->pt() : -99.;
+            printf("         g[%d] pt: %1.3f eta: %2.3f phi:%2.3f E: %1.6f  s9: %1.6f  --  d(trk,g): %1.3f  ptTrk: %2.3f\n",
+                             indexClu1Pi0[nPi0], g1P4PV.Pt(), g1P4PV.Eta(), g1P4PV.Phi(), 
+                             g1P4PV.energy(), shapes[i].s9, dclustrk1, pttrk );
+
+            pttrk = trk2 ? trk2->pt() : -99.;
+            printf("         g[%d] pt: %1.3f eta: %2.3f phi:%2.3f E: %1.6f  s9: %1.6f  --  d(trk,g): %1.3f  ptTrk: %2.3f\n",
+                             indexClu2Pi0[nPi0], g2P4PV.Pt(), g2P4PV.Eta(), g2P4PV.Phi(),
+                             g2P4PV.energy(), shapes[j].s9,dclustrk2, pttrk );
+
+            //printf("         hoe: %1.3f  trkpt035: %1.3f  ntrk035: %d\n", hvar.hcalIso040/pi0P4.energy(), 
+            //                 tvar.ptIso035, tvar.ntrkIso035 );
+#endif
+
+            nPi0++;
+
+        } // loop over clusters (g2)
+
+      } // loop over clusters to make pi0 
+
+
+      // cout << "--- EB:: nClu = " << nClu << "  nPi0 = " << nPi0 << endl ;
+
+      //      std::cout << "End of Loop" << std::endl;
+
+      // endcap 3x3 clusters
+      
+      // EE rechits
+      
+	Handle< EERecHitCollection > eeHandle;
+	iEvent.getByLabel ( EERecHitCollectionTag_, eeHandle);
+	const EERecHitCollection* hitsEE = eeHandle.product();
+	
+      std::vector< CaloCluster > clustersEE; // contains the output clusters
+      std::vector< ClusterShape > shapesEE; // contains the output clusters
+      make3x3Clusters<EEDetId,EERecHitCollection,EERecHitCollection::const_iterator>( hitsEE, &clustersEE, &shapesEE, iEvent.time());
+      
+
+      // cout << "--- EE::clustersEE.size() = " << clustersEE.size() << endl;
+
+      std::map<size_t,size_t> savedCluEE;
+      
+
+      // loop over clusters to make Pi0
+      for(size_t i=0; i< clustersEE.size(); ++i) {
+
+        const CaloCluster* g1 = &(clustersEE[i]);
+
+        // track association
+        math::XYZPoint impact1(999.,999.,999.);
+        float dclustrk1(9999.);
+        const reco::Track* trk1 = 0;     
+	  if (useTracks_)
+           trk1 = associateTrk( &(*g1), tracksHandle.product(), 
+                                geometry, trackerGeom, magField,impact1, dclustrk1);  
+
+        // 2nd loop over clusters
+        for(size_t j=i+1; j<clustersEE.size(); ++j) {
+             
+             // only store up to max number pi0 or clusters
+             if(nPi0>= NPI0MAX || nClu >= NCLUMAX) {
+               //cout << "No more space in the arrays: nPi0: " << nPi0
+               //     << "  nClu: " << nClu << endl;
+               continue;
+             }
+         
+             const CaloCluster* g2 = &(clustersEE[j]);           
+             // using the origin
+             math::PtEtaPhiMLorentzVector g1P4( g1->energy()/cosh(g1->eta()), g1->eta(), g1->phi(), 0. );
+             math::PtEtaPhiMLorentzVector g2P4( g2->energy()/cosh(g2->eta()), g2->eta(), g2->phi(), 0. );
+             math::PtEtaPhiMLorentzVector pi0P4 = g1P4 + g2P4;
+
+             // use PV 
+             TVector3 tmpV( g1->x()-xPV, g1->y()-yPV, g1->z()-zPV);
+             math::PtEtaPhiMLorentzVector g1P4PV( g1->energy()/cosh(tmpV.Eta()), 
+                                                  tmpV.Eta(), tmpV.Phi(), 0. );
+
+             tmpV = TVector3( g2->x()-xPV, g2->y()-yPV, g2->z()-zPV);
+             math::PtEtaPhiMLorentzVector g2P4PV( g2->energy()/cosh(tmpV.Eta()), 
+                                                  tmpV.Eta(), tmpV.Phi(), 0. );
+             math::PtEtaPhiMLorentzVector pi0P4PV = g1P4PV + g2P4PV;
+
+             // basic selection to reduce combinatorics
+             if( pi0P4PV.mass() > masspi0Cut_) continue;
+             if(pi0P4PV.pt() < ptpi0Cut_) continue;
+
+             // use candidates in the signal mass window
+             //if(pi0P4.mass()<0.095 || pi0P4.mass()>0.175) continue;
+
+
+             // compute isolation
+             TrackIsoVars tvar;
+             HCALIsoVars hvar; 
+             if (useTracks_)
+               tvar = computeTrackIsolation(pi0P4.eta(), pi0P4.phi(), tracksHandle.product());
+             if (useHCAL_)
+               hvar = computeHCALIsolation(pi0P4.eta(), pi0P4.phi(),geometry, HBHERecHitMetaCollection(*mhbhe));
+
+             // track association for 2nd leg
+             math::XYZPoint impact2(999.,999.,999.);
+             float dclustrk2(9999.);
+             const reco::Track* trk2 = 0;
+	       if (useTracks_)
+                trk2 = associateTrk( &(*g2), tracksHandle.product(), 
+                                                     geometry, trackerGeom, magField,impact2, dclustrk2);  
+
+           fillPi0Tree(useTracks_, useHCAL_, tvar, hvar, 
+                      dclustrk1, dclustrk2, trk1, trk2, 
+                      pi0P4PV, savedCluEE,
+                      g1P4PV, g2P4PV,
+                      shapesEE,
+                      g1, g2, nClu, i, j);
+
+#ifdef DEBUG
+            printf("iPi0: %2d  pi0 mass: %1.3f pt: %1.3f eta: %1.3f phi %1.3f\n",
+                   nPi0, pi0P4.mass(),pi0P4.pt(), pi0P4.eta(),pi0P4.phi());
+
+            float pttrk = trk1 ? trk1->pt() : -99.;
+            printf("         g[%d] pt: %1.3f eta: %2.3f phi:%2.3f E: %1.6f  s9: %1.6f  --  d(trk,g): %1.3f  ptTrk: %2.3f\n",
+                             indexClu1Pi0[nPi0], g1P4PV.Pt(), g1P4PV.Eta(), g1P4PV.Phi(), 
+                             g1P4PV.energy(), shapesEE[i].s9, dclustrk1, pttrk );
+
+            pttrk = trk2 ? trk2->pt() : -99.;
+            printf("         g[%d] pt: %1.3f eta: %2.3f phi:%2.3f E: %1.6f  s9: %1.6f  --  d(trk,g): %1.3f  ptTrk: %2.3f\n",
+                             indexClu2Pi0[nPi0], g2P4PV.Pt(), g2P4PV.Eta(), g2P4PV.Phi(),
+                             g2P4PV.energy(), shapesEE[j].s9,dclustrk2, pttrk );
+
+            //printf("         hoe: %1.3f  trkpt035: %1.3f  ntrk035: %d\n", hvar.hcalIso040/pi0P4.energy(), 
+            //                 tvar.ptIso035, tvar.ntrkIso035 );
+#endif
+/*
+            // fill tree branches
+            massPi0[nPi0] =  pi0P4PV.mass();
+            ePi0[nPi0] =  pi0P4PV.energy();
+            ptPi0[nPi0] =  pi0P4PV.pt();
+            etaPi0[nPi0] =  pi0P4PV.eta();
+            phiPi0[nPi0] =  pi0P4PV.phi();
+
+              ptIso015Pi0[nPi0] =   tvar.ptIso015;
+            ntrkIso015Pi0[nPi0] = tvar.ntrkIso015;
+              ptIso035Pi0[nPi0] =   tvar.ptIso035;
+            ntrkIso035Pi0[nPi0] = tvar.ntrkIso035;
+              ptIso040Pi0[nPi0] =   tvar.ptIso040;
+            ntrkIso040Pi0[nPi0] = tvar.ntrkIso040;
+            hcalIso005Pi0[nPi0] = hvar.hcalIso005;
+            hcalIso010Pi0[nPi0] = hvar.hcalIso010;
+            hcalIso040Pi0[nPi0] = hvar.hcalIso040;
+
+            // 1st daugher index
+            std::map<size_t,size_t>::const_iterator ind = savedCluEE.find( i );
+            if( ind == savedCluEE.end() ) {
+                savedCluEE[ i ]  = nClu;
+                S9Clu[nClu] = g1P4PV.energy();
+                ptClu[nClu] =  g1P4PV.pt();
+                etaClu[nClu] = g1P4PV.eta();
+                phiClu[nClu] = g1P4PV.phi();
+                S1Clu[nClu] =  shapesEE[i].s1;
+                S4Clu[nClu] =  shapesEE[i].s4;
+                S25Clu[nClu] = shapesEE[i].s25;
+                timeClu[nClu] = shapesEE[i].time;
+                nCryClu[nClu] = shapesEE[i].ncry9;
+                flagClu[nClu] = shapesEE[i].flag;
+                distTrkMatchClu[nClu] = dclustrk1;
+                ptTrkMatchClu[nClu] = trk1 ? trk1->pt() : -99.;
+                sMaj9Clu[nClu]  = shapesEE[i].sMaj9;
+                sMaj25Clu[nClu] = shapesEE[i].sMaj25;
+                sMaj49Clu[nClu] = shapesEE[i].sMaj49;
+                sMin9Clu[nClu]  = shapesEE[i].sMin9;
+                sMin25Clu[nClu] = shapesEE[i].sMin25;
+                sMin49Clu[nClu] = shapesEE[i].sMin49;
+                flagClu[nClu] = shapesEE[i].flag;
+
+                if( g1->seed().subdetId() == EcalBarrel ) 
+                {
+                   EBDetId sid( g1->seed() );
+                   ietaClu[nClu] = sid.ieta();
+                   iphiClu[nClu] = sid.iphi();
+                   iCryClu[nClu] = sid.ic();
+                   iSMClu[nClu] = sid.ism();
+                   imodClu[nClu] = sid.im();
+                   iTTClu[nClu] = sid.tower().iTT();
+                   iTTetaClu[nClu] = sid.tower_ieta();
+                   iTTphiClu[nClu] = sid.tower_iphi();
+                }
+                else if( g1->seed().subdetId() == EcalEndcap ) 
+                {  
+                   EEDetId sid( g1->seed() );
+                   ietaClu[nClu] = sid.ix();
+                   iphiClu[nClu] = sid.iy();
+                   iCryClu[nClu] = sid.ic();
+                   iSMClu[nClu] = sid.iquadrant();
+                   imodClu[nClu] = sid.isc();
+                   iTTClu[nClu] =    -999; //sid.tower().iTT();
+                   iTTetaClu[nClu] = -999; //sid.tower_ieta();
+                   iTTphiClu[nClu] = -999; //sid.tower_iphi();
+              //  }
+                
+                nClu++;
+            }
+
+            // 2nd daugher index
+            ind = savedCluEE.find( j );
+            if( ind == savedCluEE.end() ) {
+                savedCluEE[ j ]  = nClu;
+                S9Clu[nClu] = g2P4PV.energy();
+                ptClu[nClu] =  g2P4PV.pt();
+                etaClu[nClu] = g2P4PV.eta();
+                phiClu[nClu] = g2P4PV.phi();
+                S1Clu[nClu] =  shapesEE[j].s1;
+                S4Clu[nClu] =  shapesEE[j].s4;
+                S25Clu[nClu] = shapesEE[j].s25;
+                timeClu[nClu] = shapesEE[j].time;
+                nCryClu[nClu] = shapesEE[j].ncry9;
+                flagClu[nClu] = shapesEE[j].flag;
+                sMaj9Clu[nClu]  = shapesEE[j].sMaj9;
+                sMaj25Clu[nClu] = shapesEE[j].sMaj25;
+                sMaj49Clu[nClu] = shapesEE[j].sMaj49;
+                sMin9Clu[nClu]  = shapesEE[j].sMin9;
+                sMin25Clu[nClu] = shapesEE[j].sMin25;
+                sMin49Clu[nClu] = shapesEE[j].sMin49;
+
+                distTrkMatchClu[nClu] = dclustrk2;
+                ptTrkMatchClu[nClu] = trk2 ? trk2->pt() : -99.;
+
+                if( g2->seed().subdetId() == EcalBarrel ) 
+                {
+                   EBDetId sid( g2->seed() );
+                   ietaClu[nClu] = sid.ieta();
+                   iphiClu[nClu] = sid.iphi();
+                   iCryClu[nClu] = sid.ic();
+                   iSMClu[nClu] = sid.ism();
+                   imodClu[nClu] = sid.im();
+                   iTTClu[nClu] = sid.tower().iTT();
+                   iTTetaClu[nClu] = sid.tower_ieta();
+                   iTTphiClu[nClu] = sid.tower_iphi();
+                }
+                else if( g2->seed().subdetId() == EcalEndcap ) 
+                {
+                   EEDetId sid( g2->seed() );
+                   ietaClu[nClu] = sid.ix();
+                   iphiClu[nClu] = sid.iy();
+                   iCryClu[nClu] = sid.ic();
+                   iSMClu[nClu] = sid.iquadrant();
+                   imodClu[nClu] = sid.isc();
+                   iTTClu[nClu] =    -999; //sid.tower().iTT();
+                   iTTetaClu[nClu] = -999; //sid.tower_ieta();
+                   iTTphiClu[nClu] = -999; //sid.tower_iphi();
+           //     }
+                nClu++;
+            }
+
+            indexClu1Pi0[nPi0] = savedCluEE[i];
+            indexClu2Pi0[nPi0] = savedCluEE[j];
+
+            // 1st daughter always with higher energy
+            if(g2P4PV.pt() > g1P4PV.pt()) {
+              indexClu1Pi0[nPi0] = savedCluEE[j];
+              indexClu2Pi0[nPi0] = savedCluEE[i];
+            }
+*/
+            nPi0++;
+
+        } // loop over clusters (g2)
+
+      } // loop over clusters to make pi0 
+
+      // cout << "--- EE:: nClu = " << nClu << "  nPi0 = " << nPi0 << endl ;
+
+
+      m_tree->Fill();
+}
+
+//========================================================================================
+template <class DetIdType, class RecHitCollectionType, class IteratorType> 
+void NewPi0Dumper::make3x3Clusters(
+				   const RecHitCollectionType* ebHandle,
+                                   std::vector<CaloCluster>* clusters,
+                                   std::vector< ClusterShape >* shapes,
+				   edm::Timestamp const & iTime
+				   ) 
+{
+
+      std::vector<EcalRecHit> seeds;
+      seeds.clear();
+    
+      vector<DetId> usedXtals;
+      usedXtals.clear();
+    
+      typedef std::map< DetId , bool > XtalInUse;
+      XtalInUse isUsed; // map of which xtals have been used
+
+      std::vector<DetId> detIdEBRecHits;
+      std::vector<EcalRecHit> EBRecHits;
+
+      // sort by energy and find the seeds
+      for(IteratorType itb= ebHandle->begin(); itb != ebHandle->end(); ++itb) {
+         if(itb->energy() > s1CluCut_)  seeds.push_back( *itb );
+      } // loop over xtals
+      sort(seeds.begin(), seeds.end(), ecalRecHitLess());
+
+
+      // loop over seeds and make clusters
+      for (std::vector<EcalRecHit>::iterator itseed=seeds.begin();
+                                             itseed!=seeds.end(); itseed++) {
+        DetId seed_id( itseed->id() );
+        DetIdType  seed_id_subdet(seed_id);
+
+        // check if seed already in use. If so go to next seed
+        std::map< DetId , bool >::const_iterator mapit = isUsed.find( seed_id );
+        if( mapit != isUsed.end() ) continue; // seed already in use
+
+        // find 3x3 matrix of xtals
+        int clusEtaSize_(3), clusPhiSize_(3);
+        std::vector<DetId> clus_v;
+
+        if( seed_id_subdet.subdet() == EcalBarrel ) 
+           clus_v = ebTopology->getWindow(seed_id,clusEtaSize_,clusPhiSize_);       
+        else if( seed_id_subdet.subdet() == EcalEndcap ) 
+           clus_v = eeTopology->getWindow(seed_id,clusEtaSize_,clusPhiSize_);       
+
+        // needed for position calculator
+        std::vector<std::pair<DetId,float> > clus_used;
+         
+        // xtals actually used after removing those already used
+        vector<const EcalRecHit*> RecHitsInWindow; // 3x3 around seed. no sharing w/ other clusters. only unique xtals
+        vector<const EcalRecHit*> RecHitsInWindow3x3All; // 3x3 around seed. includes xtals from other clusters
+      
+        float simple_energy = 0; 
+        float posTotalEnergy(0.); // need for position calculation
+        // make 3x3  cluster - reject overlaps
+        for (std::vector<DetId>::const_iterator det=clus_v.begin(); det!=clus_v.end(); det++) {
+           DetIdType thisId( *det );
+
+           // find the rec hit
+           IteratorType ixtal = ebHandle->find( thisId );
+           if( ixtal == ebHandle->end() ) continue; // xtal not found
+
+           RecHitsInWindow3x3All.push_back( &(*ixtal) );
+
+           // skip this xtal if already used
+           XtalInUse::const_iterator mapit = isUsed.find( thisId );
+           if( mapit != isUsed.end() ) continue; // xtal already used
+
+	   RecHitsInWindow.push_back( &(*ixtal) );
+	   clus_used.push_back(std::make_pair(*det,1.));
+           simple_energy +=  ixtal->energy();
+           if(ixtal->energy()>0.) posTotalEnergy += ixtal->energy(); // use only pos energy for position
+        } // loop over xtals in the region
+
+        if(simple_energy <= 0) { 
+          cout << "skipping cluster with negative energy " << simple_energy << endl; 
+          continue;
+        }
+
+        float s4s9_tmp[4];
+        for(int i=0;i<4;i++){ 
+           s4s9_tmp[i]= 0;
+        }
+
+	//        DetIdType  seed_id_subdet(seed_id);
+        int seed_ieta, seed_iphi;
+
+        if( seed_id_subdet.subdet() == EcalEndcap ) {
+          seed_ieta = EEDetId(seed_id).ix();
+          seed_iphi = EEDetId(seed_id).iy();
+
+        } else if( seed_id_subdet.subdet() == EcalBarrel ) {
+          seed_ieta = EBDetId(seed_id).ieta();
+          seed_iphi = EBDetId(seed_id).iphi();
+          convxtalid( seed_iphi,seed_ieta);
+        }
+
+        //int seed_ieta = DetIdType(seed_id).ieta();
+        //int seed_iphi = DetIdType(seed_id).iphi();
+
+        // not sure works also for EE
+
+        // energy of 3x3 cluster
+        float e3x3(0.);
+        int ncry9(0);
+        std::vector<std::pair<DetId,float> > enFracs;
+
+        // variables for position caculation
+        float xclu(0.), yclu(0.), zclu(0.); // temp var to compute weighted average
+        float trClu(0.), alphaClu(0.), laserCorrClu(0.);
+        //float trCluInvertZSide(0.);
+        float total_weight(0.);// to compute position
+        float total_TrWeight(0.);// to compute average transparency correction
+        
+
+        // EB only for the time being
+        //float etaSeed = geom->getPosition(seed_id).eta() ;
+        //double T0(0.);
+        //if( fabs(ctreta) < 1.479 )  T0 = param_T0_barl_;
+        //else T0 = param_T0_endcES_;
+
+   
+        // Calculate shower depth
+        float T0 = PCparams_.param_T0_barl_;
+        float maxDepth = PCparams_.param_X0_ * ( T0 + log( posTotalEnergy ) );
+        float maxToFront = geom->getPosition(seed_id).mag(); // to front face
+
+
+        // loop over xtals and compute energy and position
+        for(unsigned int j=0; j<RecHitsInWindow.size();j++){
+
+          DetIdType det(RecHitsInWindow[j]->id());
+
+          int ieta, iphi;
+
+          if( seed_id_subdet.subdet() == EcalEndcap ) {
+            ieta = EEDetId(seed_id).ix();
+            iphi = EEDetId(seed_id).iy();
+
+          } else if( seed_id_subdet.subdet() == EcalBarrel ) {
+            ieta = EBDetId(seed_id).ieta();
+            iphi = EBDetId(seed_id).iphi();
+            convxtalid(iphi,ieta);
+          }
+
+          //int ieta = det.ieta();
+          //int iphi = det.iphi();
+
+          // use calibration coeff for energy and position
+          float en = RecHitsInWindow[j]->energy();
+          int dx = diff_neta_s(seed_ieta,ieta);
+          int dy = diff_nphi_s(seed_iphi,iphi);
+
+          if(abs(dx)<=1 && abs(dy)<=1) {
+            e3x3 += en;
+            ncry9++;
+            if(dx <= 0 && dy <=0){ s4s9_tmp[0] += en; }
+            if(dx >= 0 && dy <=0){ s4s9_tmp[1] += en; }
+            if(dx <= 0 && dy >=0){ s4s9_tmp[2] += en; }
+            if(dx >= 0 && dy >=0){ s4s9_tmp[3] += en; }
+	    enFracs.push_back( std::make_pair( RecHitsInWindow[j]->id(), en ) );
+                             // NOTA BENE: sto usando le frazioni per salvare energia rechit
+            isUsed[ RecHitsInWindow[j]->id() ] = true;
+          }
+
+          // compute position
+          if(en>0.) {
+            float weight = std::max( float(0.), float(PCparams_.param_W0_ + log(en/posTotalEnergy)) );
+
+            float depth = maxDepth + maxToFront - geom->getPosition(det).mag() ;
+            GlobalPoint posThis = geom->getPosition(det,depth);
+
+            xclu += weight*posThis.x(); 
+            yclu += weight*posThis.y(); 
+            zclu += weight*posThis.z(); 
+            total_weight += weight;
+          }
+
+	  //compute average transparency correction
+	  if(storeTransparencyCorrection_) 
+	    {
+	      float weight = en;
+	      pair <float,float> transparencyLoss= getTransparencyLoss(RecHitsInWindow[j]->id(),iTime,false);
+            float laserCorrection = getLaserCorrection(RecHitsInWindow[j]->id(),iTime,false);
+	      //pair <float,float> transparencyCorrectionInvertZSide(-99.,-99.);
+	      // if (seed_id_subdet.subdet() == EcalEndcap)
+            //    transparencyCorrectionInvertZSide = getTransparencyCorrection(RecHitsInWindow[j]->id(),iTime,true);
+	      trClu += weight * transparencyLoss.first;
+	      //trCluInvertZSide += weight * transparencyCorrectionInvertZSide.first;
+            alphaClu += weight * transparencyLoss.second ;
+            laserCorrClu += weight * laserCorrection; 
+	      total_TrWeight += weight;
+	    }
+
+
+        } // loop over 3x3 rechits
+
+        float e2x2 = *max_element( s4s9_tmp,s4s9_tmp+4);
+        float s4s9 = e2x2/e3x3;
+        math::XYZPoint clusPos( xclu/total_weight, 
+                                yclu/total_weight,
+                                zclu/total_weight ); 
+
+        if(s4s9<s4s9CluCut_) continue;
+
+        //calculate e5x5 and fill energy fractions for 5x5 area - 3x3  already done
+        float e5x5 = 0;
+        int ncry25 = 0;
+        vector<const EcalRecHit*> RecHitsInWindow5x5; // 5x5 around seed. includes xtals from others
+        std::vector<DetId> clus_v5x5;
+        if( seed_id_subdet.subdet() == EcalBarrel ) 
+           clus_v5x5 = ebTopology->getWindow(seed_id,5,5);       
+        else if( seed_id_subdet.subdet() == EcalEndcap ) 
+           clus_v5x5 = eeTopology->getWindow(seed_id,5,5);       
+
+        for( std::vector<DetId>::const_iterator idItr = clus_v5x5.begin(); idItr != clus_v5x5.end(); idItr++){
+          DetIdType det = *idItr;
+
+          //inside collections
+          IteratorType itdet = ebHandle->find(det);
+          if(itdet == ebHandle->end()) continue;
+
+          RecHitsInWindow5x5.push_back( &(*itdet) );
+          e5x5 += itdet->energy();
+          ncry25++;
+
+          // check whether hit in 3x3 window - if not fraction = 0
+          vector<const EcalRecHit*>::const_iterator in3x3 = find( RecHitsInWindow.begin(), RecHitsInWindow.end(), &(*itdet) ); 
+          if( in3x3 == RecHitsInWindow.end() ) {
+            //cout << "in 5x5 NOT 3x3  window: " << det << endl;
+	    enFracs.push_back(std::make_pair(det,0.));
+          }
+        }
+
+
+        vector<const EcalRecHit*> RecHitsInWindow7x7; // 7x7 around seed. includes xtals from others
+        std::vector<DetId> clus_v7x7;
+        if( seed_id_subdet.subdet() == EcalBarrel ) 
+           clus_v7x7 = ebTopology->getWindow(seed_id,7,7);       
+        else if( seed_id_subdet.subdet() == EcalEndcap ) 
+           clus_v7x7 = eeTopology->getWindow(seed_id,7,7);       
+
+        for( std::vector<DetId>::const_iterator idItr = clus_v7x7.begin(); idItr != clus_v7x7.end(); idItr++){
+           DetIdType det = *idItr;
+
+           //inside collections
+           IteratorType itdet = ebHandle->find(det);
+           if(itdet == ebHandle->end()) continue;
+           RecHitsInWindow7x7.push_back( &(*itdet) );
+        }
+
+        // cluster shape
+        ClusterShape shape;
+        shape.s9 = e3x3;
+        shape.ncry9 = ncry9;
+        shape.s4 = e2x2;
+        shape.s4s9 = s4s9;
+        shape.s25 = e5x5;
+        shape.ncry25 = ncry25;
+        shape.s1 = itseed->energy();
+        shape.time = itseed->time();
+        shape.flag = itseed->recoFlag();
+//         shape.sMaj9  = mom3x3.sMaj;
+//         shape.sMaj25 = mom5x5.sMaj;
+//         shape.sMaj49 = mom7x7.sMaj;
+//         shape.sMin9  = mom3x3.sMin;
+//         shape.sMin25 = mom5x5.sMin;
+//         shape.sMin49 = mom7x7.sMin;
+       shape.transparencyLoss = float(trClu)/float(total_TrWeight);
+       shape.laserCorr = float(laserCorrClu)/float(total_TrWeight);
+       shape.alpha = float(alphaClu)/float(total_TrWeight);
+	//shape.transparencyLossInvertZSide = float(trCluInvertZSide)/float(total_TrWeight);
+
+        /// by now 2nd moments are implemented only for EB
+        if( seed_id_subdet.subdet() == EcalBarrel ) 
+        {
+           // compute major and minor moments
+           Cluster2ndMoments mom3x3 = EcalClusterTools::cluster2ndMoments( RecHitsInWindow3x3All );
+           Cluster2ndMoments mom5x5 = EcalClusterTools::cluster2ndMoments( RecHitsInWindow5x5    );
+           Cluster2ndMoments mom7x7 = EcalClusterTools::cluster2ndMoments( RecHitsInWindow7x7    );
+
+           shape.sMaj9  = mom3x3.sMaj;
+           shape.sMaj25 = mom5x5.sMaj;
+           shape.sMaj49 = mom7x7.sMaj;
+           shape.sMin9  = mom3x3.sMin;
+           shape.sMin25 = mom5x5.sMin;
+           shape.sMin49 = mom7x7.sMin;
+        }
+        else if( seed_id_subdet.subdet() == EcalEndcap )
+        {
+           shape.sMaj9  = -999.999;
+           shape.sMaj25 = -999.999;
+           shape.sMaj49 = -999.999;
+           shape.sMin9  = -999.999;
+           shape.sMin25 = -999.999;
+           shape.sMin49 = -999.999;
+        }
+
+        // compute pt of gamma and cut
+        float ptClus = e3x3/cosh(clusPos.eta());
+      
+        if(ptClus<ptCluCut_) continue;
+
+        // energy corrections in bins of eta and energy
+        //if(!noCorrections_) e3x3 *= energyCorrection(e3x3,clusPos.eta());
+
+        // make calo clusters
+        clusters->push_back( CaloCluster( e3x3, clusPos, CaloID(CaloID::DET_ECAL_BARREL),
+                                         enFracs, CaloCluster::undefined, seed_id ) );
+        shapes->push_back( shape );
+      } //loop over seeds to make clusters
+
+
+
+}
+
+  
+//---------------------------------------------------
+TrackIsoVars NewPi0Dumper::computeTrackIsolation(double eta, double phi,
+                                  const reco::TrackCollection* tracks) { 
+//---------------------------------------------------
+
+  TrackIsoVars vars;
+
+  for (TrackCollection::const_iterator itTrack = tracks->begin();
+         itTrack != tracks->end(); ++itTrack) {
+
+       double etaTrack = itTrack->innerMomentum().eta();
+       double phiTrack = itTrack->innerMomentum().phi();
+
+       double deltaPhi = phiTrack-phi;
+       double deltaEta = etaTrack-eta;
+       if (deltaPhi > Geom::pi()) deltaPhi -= 2.*Geom::pi();
+       if (deltaPhi < -Geom::pi()) deltaPhi += 2.*Geom::pi();
+       double deltaR = std::sqrt(deltaEta*deltaEta+deltaPhi*deltaPhi);
+
+       if (deltaR < .15) {vars.ptIso015 += sqrt(itTrack->innerMomentum().Mag2()); vars.ntrkIso015++; }
+       if (deltaR < .35) {vars.ptIso035 += sqrt(itTrack->innerMomentum().Mag2()); vars.ntrkIso035++; }
+       if (deltaR < .40) {vars.ptIso040 += sqrt(itTrack->innerMomentum().Mag2()); vars.ntrkIso040++; }
+   }
+
+   return vars;
+
+}
+
+
+//---------------------------------------------------
+HCALIsoVars NewPi0Dumper::computeHCALIsolation(double eta, double phi, const CaloGeometry* geometry,
+                                  const HBHERecHitMetaCollection& hbhe) { 
+//---------------------------------------------------
+
+     HCALIsoVars vars;
+
+     CaloConeSelector selector4(0.4, geometry, DetId::Hcal);
+     std::auto_ptr<CaloRecHitMetaCollectionV> selected = selector4.select(eta,phi,hbhe);
+     for (CaloRecHitMetaCollectionV::const_iterator hit=selected->begin(); 
+          hit != selected->end(); ++hit) vars.hcalIso040 += hit->energy();
+
+     CaloConeSelector selector1(0.1, geometry, DetId::Hcal);
+     selected = selector1.select(eta,phi,hbhe);
+     for (CaloRecHitMetaCollectionV::const_iterator hit=selected->begin(); 
+          hit != selected->end(); ++hit) vars.hcalIso010 += hit->energy();
+
+     CaloConeSelector selector05(0.05, geometry, DetId::Hcal);
+     selected = selector05.select(eta,phi,hbhe);
+     for (CaloRecHitMetaCollectionV::const_iterator hit=selected->begin(); 
+          hit != selected->end(); ++hit) vars.hcalIso005 += hit->energy();
+
+     return vars;
+}
+
+
+
+//---------------------------------------------------
+const reco::Track* NewPi0Dumper::associateTrk( const reco::CaloCluster* cluster, 
+                                               const reco::TrackCollection* tracks, 
+                                               const CaloGeometry* geometry,
+                                               const TrackerGeometry* trackerGeom,
+                                               const MagneticField* magField,
+                                               math::XYZPoint& impactPoint,
+                                               float& distance) {
+//---------------------------------------------------
+   const CaloCellGeometry* cell ( geometry->getGeometry( cluster->seed() ) ) ;
+   const GlobalPoint gpFront ( dynamic_cast<const TruncatedPyramid*>(cell)->getPosition(0.) ) ;
+   //const GlobalPoint gpBack=dynamic_cast<const TruncatedPyramid*>(cell)->getPosition(23.) ;
+   
+   const reco::Track* closestTrkFront=0;
+   float distanceFront=9999.;
+   math::XYZPoint frPoint(999.,999.,999.);
+   
+   PropagationTools proptool(gpFront.perp());
+   for (reco::TrackCollection::const_iterator trk=tracks->begin();
+        trk!=tracks->end();++trk)  {
+            if(trk->pt()<0.7) continue;
+   
+            math::XYZPoint ew;
+            bool match = proptool.getTrackImpactPositionEB(&(*trk),trackerGeom,magField,ew);
+            if(!match) continue;
+            if( (math::XYZPoint(gpFront.x(),gpFront.y(),gpFront.z())-ew).R()<distanceFront ) {
+               frPoint = ew;
+               distanceFront = (math::XYZPoint(gpFront.x(),gpFront.y(),gpFront.z())-ew).R();
+               closestTrkFront = &(*trk);
+            }
+   } // loop over tracks
+
+   // return output
+   impactPoint = frPoint;
+   distance = distanceFront;
+   return  closestTrkFront;
+
+}
+
+//--------------------------------------------------------------------------------------------
+void NewPi0Dumper::FillTriggerInfo(const edm::Event& iEvent, const edm::EventSetup& iSetup) {
+//--------------------------------------------------------------------------------------------
+
+   using namespace edm;
+   using namespace reco;
+
+   // trigger Handles
+   Handle< L1GlobalTriggerReadoutRecord > gtReadoutRecord;
+   iEvent.getByLabel( l1TriggerInput_, gtReadoutRecord);
+
+   ESHandle<L1GtTriggerMenu> menuRcd;
+   iSetup.get<L1GtTriggerMenuRcd>().get(menuRcd);
+
+   /// L1 trigger results for physics algorithms
+   //const L1GtTriggerMenu* menu = menuRcd.product();
+   const DecisionWord& gtDecisionWordBeforeMask = gtReadoutRecord->decisionWord();
+
+   isBSC = false;
+
+   nL1bits = int( gtDecisionWordBeforeMask.size() );
+
+   for (int iBit = 0; iBit < nL1bits; ++iBit)
+      L1bits[iBit] = gtDecisionWordBeforeMask[iBit] ;
+   /// L1 technical triggers
+   const TechnicalTriggerWord&  technicalTriggerWordBeforeMask = gtReadoutRecord->technicalTriggerWord();
+   nL1bitsTech = int(technicalTriggerWordBeforeMask.size());
+   for(int iBit = 0; iBit < nL1bitsTech; ++iBit) {
+     L1bitsTech[iBit] = technicalTriggerWordBeforeMask.at(iBit);
+   }
+
+   isBSC = L1bitsTech[0] && (L1bitsTech[40] || L1bitsTech[41]) 
+                         && ! (L1bitsTech[36] || L1bitsTech[37] || L1bitsTech[38] || L1bitsTech[39]) 
+                         && ! ((L1bitsTech[42] && ! L1bitsTech[43]) || (L1bitsTech[43] && ! L1bitsTech[42])) ;
+
+
+} // end of FillTriggerInfo
+
+
+//--------------------------------------------------------------------------------------------
+void NewPi0Dumper::FillMCInfo(const edm::Event& iEvent, const edm::EventSetup& iSetup) {
+//--------------------------------------------------------------------------------------------
+
+   using namespace std;
+   using namespace edm;
+   using namespace reco;
+
+   nSIM = nMC = 0;
+
+   if(iEvent.isRealData()) { cout << "No MC truth in data! return" << endl; return; }
+
+   // get MC info from GenParticleCandidates 
+   Handle<GenParticleCollection> genParticles;
+   iEvent.getByLabel("genParticles", genParticles);
+   // get GEANT sim tracks and vertices (includes conversions)
+   Handle<SimTrackContainer> simTracks_h;
+   const SimTrackContainer* simTracks;
+   iEvent.getByLabel("g4SimHits", simTracks_h);
+   simTracks = (simTracks_h.isValid()) ? simTracks_h.product() : 0;
+
+   Handle<SimVertexContainer> simVert_h;
+   const SimVertexContainer* simVertices;
+   iEvent.getByLabel("g4SimHits", simVert_h);
+   simVertices = (simVert_h.isValid()) ? simVert_h.product() : 0;
+
+      int current_particle = -1;
+      set<int> mothers;
+      map<const GenParticle*, int> mapMC;
+      map<const GenParticle*, int>::iterator mapMC_it;
+
+      int p_count(0);
+      int motherIDMC_temp = -1;
+    
+      for (GenParticleCollection::const_iterator p = genParticles->begin(); p != genParticles->end(); ++p, ++p_count) 
+      {
+         // saving only photons and pi0s
+/*         if ( nMC >= (nMaxMC-1) ||
+              (p->pdgId() != kPhoton &&
+               fabs(p->pdgId()) != kElectron &&
+               p->pdgId() != kPi0 )) 
+            continue;
+*/
+         if ( nMC >= (nMaxMC-1) ) continue;
+
+         // looking for mother particle
+         motherIDMC_temp = -1;
+         //where_is_pi0_mother = -1; // debug
+         if (p->numberOfMothers() > 0) 
+         {
+            const Candidate * mom = p->mother();
+            for (size_t j = 0; j != genParticles->size(); ++j) 
+            {
+               const Candidate * ref = &((*genParticles)[j]);
+               if (mom==ref)
+               {
+                  motherIDMC_temp = j; 
+                  //if(mom->pdgId()==kPi0)//debug
+                  //   where_is_pi0_mother = j; // debug
+               }
+            }
+         } 
+         
+         // Neutral particles kept with >100 MeV 
+         if ( p->status()==1  && p->pt()>0.100 )//|| (p->charge()!=0 && p->pt()>0.075)) ) 
+         {
+            pdgIdMC[nMC] = p->pdgId();
+            statusMC[nMC] = p->status();
+            ptMC[nMC] = p->pt();
+            eMC[nMC] = p->energy();
+            etaMC[nMC] = p->eta(); 
+            phiMC[nMC] = p->phi(); 
+            mapMC[&(*p)] = nMC;
+            convertedMC[nMC] = false;
+            motherIDMC[nMC] = -1; //((const GenParticle*)p->mother())->pdgId(); 
+            motherIndexMC[nMC] = -1; //hic::check
+            current_particle = nMC;
+            ++nMC; 
+
+            // if stable photon/electron, find parent
+            if (p->status() == 1 && motherIDMC_temp != -1 && (p->pdgId() == kPhoton || fabs(p->pdgId()) == kElectron ) ) //|| p->pdgId() == 221)) // 221=eta0 
+            {
+               const GenParticle *mom = (const GenParticle*)p->mother();
+               /* 
+               if(p->pdgId() == kPhoton ) // debug
+               {
+                   cout << "cms_photon::" << p_count;
+                   if( where_is_pi0_mother!=-1 )
+                      cout << "  cms_pi0::" << where_is_pi0_mother <<endl;
+                   else
+                      cout << "  not from pi0" << endl;
+
+                   cout << "*** my_photon::" << current_particle ;
+               }
+               */
+               // saving the mother pdgId 
+               motherIDMC[current_particle] = mom->pdgId();
+
+               if ( mom->status() == 2 &&  (mom->pdgId()<81 || mom->pdgId()>100)) // avoid to store partons and MC internal
+               {
+                  // if the mother particle is found for the first time
+                  if(mothers.find(motherIDMC_temp) == mothers.end())
+                  {
+                     mothers.insert(motherIDMC_temp);
+                     if (nMC>=nMaxMC) continue;
+                     pdgIdMC[nMC] = mom->pdgId();
+                     statusMC[nMC] = mom->status();
+                     ptMC[nMC] = mom->pt();
+                     eMC[nMC] = mom->energy();
+                     etaMC[nMC] = mom->eta();
+                     phiMC[nMC] = mom->phi(); 
+                     mapMC[mom] = nMC;
+                     //motherIndexMC[nMC-1] = nMC;
+                     ++nMC;
+                  }
+                  //else
+                  //{
+                     //motherIndexMC[nMC-1] = mapMC.find(mom)->second;
+                  //}
+               }
+
+               mapMC_it =  mapMC.find(mom);
+               if(mapMC_it != mapMC.end())
+                  motherIndexMC[current_particle] = mapMC_it->second;
+               //cout << "   my_pi0::" << motherIndexMC[current_particle] << endl;
+            } // stable particle has parents 
+         } // particle selection
+      } // loop over particles
+
+
+     //----- Figure out the particle decays in tracker volume  ------
+
+     // Vertices only return trackID of their parent SimTrack
+     // Figure out the mapping from trackID to SimTrack
+     map<unsigned int, const SimTrack*> trackMap;
+     for (SimTrackContainer::const_iterator iSim = simTracks->begin(); iSim != simTracks->end(); ++iSim) 
+     {
+       if (!iSim->noVertex()) 
+       {
+         assert(trackMap.find(iSim->trackId())==trackMap.end());
+         trackMap[iSim->trackId()] = &(*iSim);
+       }
+     }
+
+
+     // Find all SimTracks that come from decays before the ECAL
+     // and find their parent SimTracks
+     map<const SimTrack*, const SimTrack*> promptParent; // daughter->mother
+     map<const SimTrack*, set<const SimTrack*> > promptDecays; // m->ds
+     map<const SimTrack*, const SimVertex*> promptVertex; // daughter->vertex
+
+     for (SimTrackContainer::const_iterator iSim = simTracks->begin(); iSim != simTracks->end(); ++iSim) 
+     {
+        if (!iSim->noVertex()) 
+        {
+           // Find the parent vertex and see if it classifies as an early decay
+           // Exclude the primary vertex (noParent)
+           SimVertex const& vtx = (*simVertices)[iSim->vertIndex()];
+           if (!vtx.noParent() && vtx.position().Rho() < 129 && fabs(vtx.position().z()) < 304) 
+           {
+              // Find parent SimParticle that produced this vertex
+              // vtx->parentIndex is NOT a vector index :( so use trackMap
+              assert(trackMap.find(vtx.parentIndex())!=trackMap.end());
+              const SimTrack* p = trackMap[vtx.parentIndex()];
+              promptParent[&(*iSim)] = p;
+              promptDecays[p].insert(&(*iSim));
+              promptVertex[&(*iSim)] = &vtx;
+            } // early decay
+        } // has vertex
+     } // for simTracks
+
+     // Find grandparent SimTracks all the way up the chain
+     map<const SimTrack*, const SimTrack*> chainParents;// g.daughter->grandma
+     map<const SimTrack*, set<const SimTrack*> > chainDecays; // gm->gds
+
+     for (map<const SimTrack*, const SimTrack*>::const_iterator iSim = promptParent.begin(); iSim != promptParent.end(); ++iSim) 
+     {
+        // Check that the SimTrack has no daughters itself (=grandchild)
+        if (promptDecays.find(iSim->first)==promptDecays.end())
+        {
+           // Find the first SimTrack in the parentage chain (=grandparent)
+           const SimTrack *p = iSim->second;
+           while (promptParent.find(p) != promptParent.end())
+           p = promptParent[p];
+           chainParents[iSim->first] = p;
+           chainDecays[p].insert(iSim->first);
+        } // is grandchild
+     } // for promptParent
+
+    
+/*   
+ *   ///pruning disabled to keep all the MC particles
+     for (map<const SimTrack*, set<const SimTrack*> >::const_iterator iSim = chainDecays.begin(); iSim != chainDecays.end(); ++iSim) 
+     {
+       // iteratively go down the chain and remove decays
+       pruneKids(iSim->first, promptDecays, promptParent, promptVertex, 0);
+     }
+*/
+     // Associate grandParents to GenParticles
+     map<const GenParticle*, const SimTrack*> decayedSims;
+     map<const SimTrack*, const GenParticle*> decayedGens;
+
+     for (map<const SimTrack*, set<const SimTrack*> >::const_iterator iSim = chainDecays.begin(); iSim != chainDecays.end(); ++iSim) 
+     {
+       if (iSim->first->noGenpart()) 
+         continue;
+
+       // Make sure the decay chain wasn't already pruned out
+       if (promptDecays.find(iSim->first)!=promptDecays.end() && promptDecays[iSim->first].size()!=0) 
+       {
+          // NB: genpartIndex offset by 1
+          const GenParticle* iGen =
+          &(*genParticles)[iSim->first->genpartIndex()-1];
+          assert(iGen->pdgId()==iSim->first->type());
+          decayedSims[iGen] = iSim->first;
+          decayedGens[iSim->first] = iGen;
+       }
+     } // for chainParents 
+/*
+     // Save the decay products of the long-lived particles
+     for (map<const GenParticle*, const SimTrack*>::const_iterator iGen = decayedSims.begin(); iGen != decayedSims.end(); ++iGen) 
+     {
+       const GenParticle *p = iGen->first;
+       if (p->pdgId()==310 || // K0s 
+           p->pdgId()==3122 || // Lambda
+           p->pdgId()==3322 || // Xi0 
+           p->pdgId()==111 || // Pi0 
+           p->pdgId()==221) // eta
+       {
+          bool saved = printChildren(decayedSims[p], promptDecays, promptVertex, 0, true, p->pdgId());
+          if (saved && mapMC.find(p)!=mapMC.end()) 
+            statusMC[mapMC[p]] *= -1;
+       } // decay prod
+     } // for iGen 
+*/
+     /// Save conversions 
+     for (map<const GenParticle*, const SimTrack*>::const_iterator iGen = decayedSims.begin(); iGen != decayedSims.end(); ++iGen) 
+     {
+       const GenParticle *p = iGen->first;
+
+       /// if the photon comes from pi0 or eta
+       //if (p->pdgId()==22 && p->mother()->status()==2 && p->mother()->pdgId()==111) 
+       if (p->pdgId()==22 && (p->mother()->pdgId()==111 ||  // pi0 
+                              p->mother()->pdgId()==221 ) ) // eta
+       {
+          /// find the mother gen-particle index in the gen-particle vector
+          mapMC_it =  mapMC.find(p);
+          int mother_gen_index = -1;
+          if(mapMC_it != mapMC.end())
+             mother_gen_index = mapMC_it->second;
+ 
+          if(mother_gen_index > 0)
+             convertedMC[mother_gen_index] = true;
+          // save the decay chain
+          bool saved = printChildren(decayedSims[p], promptDecays,  promptVertex, 0, true, mother_gen_index);
+          if (saved && mapMC.find(p)!=mapMC.end()) {
+             statusMC[mapMC[p]] *= -1;
+         }
+       } // is primary photon
+     } // for iGen 
+
+} // end of FillMCInfo
+
+
+// Method for iterative printing of decay chains
+//------------------------------------------------------------------------------------
+bool NewPi0Dumper::printChildren(const SimTrack* p, 
+		    std::map<const SimTrack*, set<const SimTrack*> > const& ptokids,
+		    std::map<const SimTrack*, const SimVertex*> const& ptovtx,
+		    int level, bool save, int motherGenIndex) {
+//------------------------------------------------------------------------------------
+
+   using namespace std;
+  // Print parent
+  bool hasvtx = (ptovtx.find(p) != ptovtx.end());
+  
+  bool hasKids = (ptokids.find(p) != ptokids.end());
+
+  // Save only SIM tracks not already in GenParticle list
+  bool saved = false;
+  if (save && level > 0 && nSIM < nMaxSIM) {
+    pdgIdSIM[nSIM] = p->type();
+    statusSIM[nSIM] = (hasKids ? 2 : 1);
+    ptSIM[nSIM] = p->momentum().pt();
+    eSIM[nSIM] = p->momentum().energy();
+    etaSIM[nSIM] = p->momentum().eta();
+    phiSIM[nSIM] = p->momentum().phi();
+    motherGenIndexSIM[nSIM] = motherGenIndex;
+    if (hasvtx) {
+      rSIM[nSIM] = ptovtx.find(p)->second->position().Rho();
+      zSIM[nSIM] = ptovtx.find(p)->second->position().z();
+    }
+    else {
+      rSIM[nSIM] = zSIM[nSIM] = 0.;
+      //assert(hasvtx);
+    }
+    
+    ++nSIM;
+    saved = true;
+  }
+
+  // Print children, if any
+  if (hasKids) {
+
+    set<const SimTrack*> const& kids = ptokids.find(p)->second;
+    for (set<const SimTrack*>::const_iterator iKid = kids.begin();
+	 iKid != kids.end(); ++iKid)
+      saved |= printChildren(*iKid, ptokids, ptovtx, level+1, save, motherGenIndex);
+  } // if kids
+
+  return saved;
+ } // printChildren
+
+
+// Go down in chain and remove unwanted decays
+//------------------------------------------------------------------------------------
+bool NewPi0Dumper::pruneKids(const SimTrack* p,
+     std::map<const SimTrack*, set<const SimTrack*> > & decays,
+     std::map<const SimTrack*, const SimTrack*> & parent,
+     std::map<const SimTrack*, const SimVertex*> & vertex,
+     int level) {
+//------------------------------------------------------------------------------------
+
+  using namespace std;
+
+  // No children, go one level back
+  if (decays.find(p)==decays.end()) return false;
+  
+  // Prune kids and see if there are any grandchildren left after pruning
+  set<const SimTrack*> const& kids = decays.find(p)->second;
+  bool hasGrandKids = false;
+  bool hasSameType = false;
+  unsigned int nPhotons = 0;
+  unsigned int nElectrons = 0;
+  for (set<const SimTrack*>::const_iterator iKid = kids.begin();
+       iKid != kids.end(); ++iKid) {
+
+    bool hasKids = pruneKids(*iKid, decays, parent, vertex, level+1);
+    hasGrandKids = hasGrandKids || hasKids;
+    hasSameType = hasSameType || (*iKid)->type()==p->type(); 
+    if ((*iKid)->type()==22) ++nPhotons;
+    if (abs((*iKid)->type())==11) ++nElectrons;
+  }
+  // if there are grandkids, don't prune kids as we need the whole chain
+  if (hasGrandKids) return true;
+
+  // See if we have some reason to prune the kids
+  double pt  = p->momentum().pt();
+  bool prune = (hasSameType && nPhotons==kids.size()-1) // bremsstrahlung
+    || (nElectrons==kids.size() && level!=0) // non-primary photon conversion
+    || (abs(p->type())==11 && nPhotons==kids.size()) // weird brem (no e)
+    || (abs(p->type())==11 && nPhotons==kids.size()-nElectrons) // ionization
+    || (p->type()==111 && pt<0.9 && nPhotons==kids.size()) // low pT pi0      <---important_selection
+    || (p->type()==22 && pt<0.9 && nElectrons==kids.size()); // low pT conv
+  // || (kids.size()==1); // not a real decay?
+  // (NB: electron brems can produce more than one photon)
+  // (NG: electrons can turn into a photon with much less pT?)
+  // (NB: photon conversions can produce only one electron)
+  // (NB: pizeros can produce only one photon with most of pT)
+  // (NB: pi+ decays seem to only produce a muon, no neutrinos) 
+
+  // Prune, i.e. remove the parent decay and all the kids from maps
+  if (prune) {
+
+    for (set<const SimTrack*>::const_iterator iKid = kids.begin();
+	 iKid != kids.end(); ++iKid) {
+      parent.erase(*iKid);
+      vertex.erase(*iKid);
+    } // for kids
+    decays.erase(p);
+
+    return false;
+  } // if prune
+  else // no pruning done
+    return true; 
+
+} // pruneKids
+
+
+
+//--------------------------------------------------------------------------------------------
+void NewPi0Dumper::FillConversionInfo(const edm::Event& iEvent, const edm::EventSetup& iSetup) {
+//--------------------------------------------------------------------------------------------
+
+   using namespace std;
+   using namespace edm;
+   using namespace reco;
+
+  // get converted photons
+  Handle<ConversionCollection> convertedPhotonHandle; // get the Converted Photon info
+  iEvent.getByLabel(conversionsTag_, convertedPhotonHandle);
+
+  nconvPhot = 0;
+
+  // loop on converted photons
+  for (reco::ConversionCollection::const_iterator iCPho =
+	 convertedPhotonHandle->begin(); iCPho != convertedPhotonHandle->end(); ++iCPho){
+   
+    if (nconvPhot>=NCONVMAX) {cout << "number of conversion photons is larger than 10. Skipping" << endl; continue;}
+    chi2convPhot[nconvPhot] = (*iCPho).conversionVertex().chi2();
+    ndofconvPhot[nconvPhot] = (*iCPho).conversionVertex().ndof();
+    // conversionVertex does not seem to work too well, often rho=phi=z=0
+    rconvPhot[nconvPhot] = (*iCPho).conversionVertex().position().rho();
+    phiconvPhot[nconvPhot] = (*iCPho).conversionVertex().position().phi();
+    zconvPhot[nconvPhot] = (*iCPho).conversionVertex().position().z();
+    ntrkconvPhot[nconvPhot] = (*iCPho).tracks().size();
+    //       eovpconvPhot[nconvPhot] = (*iCPho).EoverP();
+    //       etaecalconvPhot[nconvPhot] = (*iCPho).caloCluster()[0]->eta(); 
+    //       phiecalconvPhot[nconvPhot] = (*iCPho).caloCluster()[0]->phi(); 
+    //       energyecalconvPhot[nconvPhot] =(*iCPho).caloCluster()[0]->energy();
+    // additional quality checks on conversion pairs
+    d0convPhot[nconvPhot] = (*iCPho).distOfMinimumApproach();
+    algoconvPhot[nconvPhot] = (*iCPho).algo();
+     // they make the job crash. assign -99 for now
+    //detaecalconvPhot[nconvPhot] = (*iCPho).dEtaTracksAtEcal();
+    //dphiecalconvPhot[nconvPhot] = (*iCPho).dPhiTracksAtEcal();
+    dphivtxconvPhot[nconvPhot] = (*iCPho).dPhiTracksAtVtx();
+    pairsepconvPhot[nconvPhot] = (*iCPho).pairCotThetaSeparation();
+    pairmassconvPhot[nconvPhot] = (*iCPho).pairInvariantMass();
+    // track-wise quality (one track guaranteed with isConverted()
+   trchi21convPhot[nconvPhot] = (*iCPho).tracks()[0]->chi2();
+    trndof1convPhot[nconvPhot] = (*iCPho).tracks()[0]->ndof();
+    trqual1convPhot[nconvPhot] = (*iCPho).tracks()[0]->qualityMask();
+    trpt1convPhot[nconvPhot] = (*iCPho).tracks()[0]->pt();
+    trerr1convPhot[nconvPhot] = (*iCPho).tracks()[0]->ptError();
+    phi1convPhot[nconvPhot] = (*iCPho).tracks()[0]->innerMomentum().phi(); 
+    eta1convPhot[nconvPhot] = (*iCPho).tracks()[0]->innerMomentum().eta(); 
+    p1convPhot[nconvPhot] = (*iCPho).tracks()[0]->innerMomentum().R(); 
+
+//   chi2convPhot[nconvPhot] =  -99.;
+//   ndofconvPhot[nconvPhot] =  -99.;
+//   rconvPhot[nconvPhot] =  -99.;
+//   phiconvPhot[nconvPhot] =  -99.;
+//   zconvPhot[nconvPhot] =  -99.;
+//   ntrkconvPhot[nconvPhot] =  -99.;
+//   d0convPhot[nconvPhot] =  -99.;
+//   algoconvPhot[nconvPhot] =  -99.;
+     // they make the job crash
+     detaecalconvPhot[nconvPhot] =  -99.;
+     dphiecalconvPhot[nconvPhot] =  -99.;
+//   dphivtxconvPhot[nconvPhot] =  -99.;
+//   pairsepconvPhot[nconvPhot] =  -99.;
+//   pairmassconvPhot[nconvPhot] =  -99.;
+//   trchi21convPhot[nconvPhot] =  -99.;
+//   trndof1convPhot[nconvPhot] =  -99.;
+//   trqual1convPhot[nconvPhot] =  -99.;
+//   trpt1convPhot[nconvPhot] =  -99.;
+//   trerr1convPhot[nconvPhot] =  -99.;
+//   phi1convPhot[nconvPhot] =  -99.;
+//   eta1convPhot[nconvPhot] =  -99.;
+//   p1convPhot[nconvPhot] =  -99.;
+
+
+    if (ntrkconvPhot[nconvPhot] > 1) {
+      trchi22convPhot[nconvPhot] = (*iCPho).tracks()[1]->chi2();
+      trndof2convPhot[nconvPhot] = (*iCPho).tracks()[1]->ndof();
+      trqual2convPhot[nconvPhot] = (*iCPho).tracks()[1]->qualityMask();
+      trpt2convPhot[nconvPhot] = (*iCPho).tracks()[1]->pt();
+      trerr2convPhot[nconvPhot] = (*iCPho).tracks()[1]->ptError();
+      phi2convPhot[nconvPhot] = (*iCPho).tracks()[1]->innerMomentum().phi(); 
+      eta2convPhot[nconvPhot] = (*iCPho).tracks()[1]->innerMomentum().eta(); 
+      p2convPhot[nconvPhot] = (*iCPho).tracks()[1]->innerMomentum().R(); 
+    }
+    else {
+      trchi22convPhot[nconvPhot] = -99;
+      trndof2convPhot[nconvPhot] = -99;
+      trqual2convPhot[nconvPhot] = -99;
+      trpt2convPhot[nconvPhot] = -99;
+      trerr2convPhot[nconvPhot] = -99;
+      phi2convPhot[nconvPhot] =  -99;
+      eta2convPhot[nconvPhot] =  -99;
+      p2convPhot[nconvPhot] =  -99;
+    }
+    
+    ++nconvPhot;
+   //    }
+  } 
+
+}
+
+//--------------------------------------------------------------------------------------------
+void NewPi0Dumper::FillJetMetInfo(const edm::Event& iEvent, const edm::EventSetup& iSetup) {
+//--------------------------------------------------------------------------------------------
+
+   using namespace std;
+   using namespace edm;
+   using namespace reco;
+
+   // get caloMET
+   Handle<CaloMETCollection> calomethandle;
+   iEvent.getByLabel(CaloMetTag_, calomethandle);
+   CaloMETCollection::const_iterator calomet = calomethandle->begin();
+   sumetMet   = calomet->sumEt();
+   ptMet      = calomet->pt();	 
+   phiMet     = calomet->phi();	      
+
+
+   // get pfMET
+   Handle<PFMETCollection> pfmethandle;
+   iEvent.getByLabel(PFMetTag_, pfmethandle);
+   PFMETCollection::const_iterator pfmet = pfmethandle->begin();
+   
+   sumetPFMet   = pfmet->sumEt();
+   ptPFMet      = pfmet->pt();	 
+   phiPFMet     = pfmet->phi();	      
+
+   //const JetCorrector* corrector_pfakt5 = JetCorrector::getJetCorrector(pfakt5JetCorrectionServiceTag_, iSetup);
+
+   // pf jets
+   Handle<PFJetCollection> pfjetsakt5;
+   iEvent.getByLabel(PFJetsTag_, pfjetsakt5);
+
+   nPFJet = 0;
+   for (PFJetCollection::const_iterator it = pfjetsakt5->begin(); 
+	 it != pfjetsakt5->end() && nPFJet < NPFJETMAX; ++it) {
+     
+     ptPFJet[nPFJet]  = it->pt();
+     ePFJet[nPFJet]   = it->energy();	 
+     etaPFJet[nPFJet] = it->eta();	 
+     phiPFJet[nPFJet] = it->phi();	      
+     
+     // Jet Energy Scale Corrections on-the-fly     
+     PFJet  correctedJet = *it;
+     double scale = 1.; //corrector_pfakt5->correction(it->p4());
+     correctedJet.scaleEnergy(scale);
+     ptcorrPFJet[nPFJet] = correctedJet.pt();
+
+     nPFJet++;
+   }
+}
+
+
+//--------------------------------------------------------------------------------------------
+void NewPi0Dumper::FillHFInfo(const edm::Event& iEvent, const edm::EventSetup& iSetup) {
+//--------------------------------------------------------------------------------------------
+
+    using namespace std;
+    using namespace edm;
+    using namespace reco;
+
+    // getting very basic uncalRH
+    edm::Handle<HFRecHitCollection> crudeHits;
+    iEvent.getByLabel(HFTag_, crudeHits);
+
+    isHFMinBias = false;
+    eHfNeg=0.;
+    eHfNegTime=0.;
+    eHfPos=0.;
+    eHfPosTime=0.;
+    eHfNcounts=0;
+    eHfPcounts=0;
+
+    float eThresh = 3.0;
+
+    for(size_t ihit = 0; ihit<crudeHits->size(); ++ihit){
+      const HFRecHit h = (*crudeHits)[ihit];
+      double energy = h.energy();
+      double time = h.time();
+      const HcalDetId id(h.id());
+      if(energy<0) continue;
+      if (id.zside()<0) {
+        eHfNeg     += energy;
+        eHfNegTime += energy * time;
+        if (energy>eThresh) ++eHfNcounts;
+         
+      } else {
+        eHfPos     += energy;
+        eHfPosTime += energy * time;
+        if (energy>eThresh) ++eHfPcounts;
+      }
+    }
+
+    isHFMinBias = eHfPcounts >0 && eHfNcounts > 0. ;
+
+/**
+    double hfTimeDiff  = eHfPosTime - eHfNegTime;
+    double hfEnergyMin = min(eHfPos,eHfNeg);
+
+    bool accepted = true;
+
+    if (
+        (fabs(hfTimeDiff)>maxHfTimeDiff_ && maxHfTimeDiff_>0) ||
+        (hfEnergyMin < minHfEnergy_)                                ||
+        (eHfNcounts < nHfHits_)                           ||
+        (eHfPcounts < nHfHits_)
+        )
+      accepted=false;
+**/
+}
+
+
+
+//===================================================================================================
+bool NewPi0Dumper::FilterOutScraping(const edm::Event& iEvent, const edm::EventSetup& iSetup)
+//===================================================================================================
+{
+
+  bool accepted = false;
+  float fraction = 0;  
+  // get GeneralTracks collection
+
+  edm::Handle<reco::TrackCollection> tkRef;
+  iEvent.getByLabel("hiSelectedTracks",tkRef);    
+  const reco::TrackCollection* tkColl = tkRef.product();
+
+  //std::cout << "Total Number of Tracks " << tkColl->size() << std::endl;
+  
+  size_t numhighpurity=0;
+  reco::TrackBase::TrackQuality _trackQuality = reco::TrackBase::highPurity;
+
+  size_t numtrack = 10;
+  float thresh = 0.25;
+
+  if(tkColl->size()>numtrack){ 
+    for(reco::TrackCollection::const_iterator itk = tkColl->begin(); itk != tkColl->end(); ++itk){
+      // std::cout << "HighPurity?  " << itk->quality(_trackQuality) << std::endl;
+      if(itk->quality(_trackQuality)) numhighpurity++;
+    }
+    fraction = (float)numhighpurity/(float)tkColl->size();
+    if(fraction>thresh) accepted=true;
+  }else{
+    //if less than 10 Tracks accept the event anyway    
+    accepted= true;
+  }
+  
+ /** 
+    int ievt = iEvent.id().event();
+    int irun = iEvent.id().run();
+    int ils = iEvent.luminosityBlock();
+    int bx = iEvent.bunchCrossing();
+    
+    std::cout << "FilterOutScraping_debug: Run " << irun << " Event " << ievt
+              << " Lumi Block " << ils << " Bunch Crossing " << bx << " Fraction " 
+              << fraction << " NTracks " << tkColl->size() << " Accepted " << accepted << std::endl;
+**/
+
+  return accepted;
+
+}
+
+float NewPi0Dumper::getLaserCorrection(DetId const & xid, edm::Timestamp const & iTime, bool invertZSide) const
+{
+  float correctionFactor = 1.0;
+
+  if (!mAPDPNRatios_ || !mAPDPNRatiosRef_)
+    {
+      edm::LogError("EcalLaserDbService") << "Laser DB info not found" << endl;
+      return correctionFactor;
+    }
+
+  const EcalLaserAPDPNRatios::EcalLaserAPDPNRatiosMap& laserRatiosMap =  mAPDPNRatios_->getLaserMap();
+  const EcalLaserAPDPNRatios::EcalLaserTimeStampMap& laserTimeMap =  mAPDPNRatios_->getTimeMap();
+  const EcalLaserAPDPNRatiosRefMap& laserRefMap =  mAPDPNRatiosRef_->getMap();
+  const EcalLaserAlphaMap& laserAlphaMap =  mAlphas_->getMap();
+
+  EcalLaserAPDPNRatios::EcalLaserAPDPNpair apdpnpair;
+  EcalLaserAPDPNRatios::EcalLaserTimeStamp timestamp;
+  EcalLaserAPDPNref apdpnref;
+  EcalLaserAlpha alpha;
+
+  if (xid.det()==DetId::Ecal) {
+    //    std::cout << " XID is in Ecal : ";
+  } else {
+    //    std::cout << " XID is NOT in Ecal : ";
+    edm::LogError("EcalLaserDbService") << " DetId is NOT in ECAL" << endl;
+    return correctionFactor;
+  } 
+  
+  int hi = -1;
+  if (xid.subdetId()==EcalBarrel) {
+    //    std::cout << "EcalBarrel" << std::endl;
+    //    std::cout << "--> rawId() = " << xid.rawId() << "   id() = " << EBDetId( xid ).hashedIndex() << std::endl;
+    hi = EBDetId( xid ).hashedIndex();
+  } else if (xid.subdetId()==EcalEndcap) {
+    //    std::cout << "EcalEndcap" << std::endl;
+    hi = EEDetId( xid  ).hashedIndex() + EBDetId::MAX_HASH + 1;
+  } else {
+    //    std::cout << "NOT EcalBarrel or EcalEndCap" << std::endl;
+    edm::LogError("EcalLaserDbService") << " DetId is NOT in ECAL Barrel or Endcap" << endl;
+    return correctionFactor;
+  }
+  
+  int iLM;
+  if (xid.subdetId()==EcalBarrel) {
+    EBDetId ebid( xid.rawId() );
+    iLM = MEEBGeom::lmr(ebid.ieta(), ebid.iphi());
+  } else if (xid.subdetId()==EcalEndcap) {
+    EEDetId eeid( xid.rawId() );
+    // SuperCrystal coordinates
+    MEEEGeom::SuperCrysCoord iX = (eeid.ix()-1)/5 + 1;
+    MEEEGeom::SuperCrysCoord iY = (eeid.iy()-1)/5 + 1;    
+    iLM = MEEEGeom::lmr(iX, iY, eeid.zside());    
+  } else {
+    edm::LogError("EcalLaserDbService") << " DetId is NOT in ECAL Barrel or Endcap" << endl;
+    return correctionFactor;
+  }
+  //  std::cout << " LM num ====> " << iLM << endl;
+  
+  // get alpha, apd/pn ref, apd/pn pairs and timestamps for interpolation
+  DetId myId;
+  if (xid.subdetId()==EcalEndcap && invertZSide)
+    myId=EEDetId(EEDetId(xid).ix(),EEDetId(xid).iy(),-1*EEDetId(xid).zside());
+  else
+    myId=xid;
+
+  EcalLaserAPDPNRatios::EcalLaserAPDPNRatiosMap::const_iterator itratio = laserRatiosMap.find(myId);
+  if (itratio != laserRatiosMap.end()) {
+    apdpnpair = (*itratio);
+  } else {
+    edm::LogError("EcalLaserDbService") << "error with laserRatiosMap!" << endl;     
+    return correctionFactor;
+  }
+  
+  if (iLM-1< (int)laserTimeMap.size()) {
+    timestamp = laserTimeMap[iLM-1];  
+  } else {
+    edm::LogError("EcalLaserDbService") << "error with laserTimeMap!" << endl;     
+    return correctionFactor;
+  }
+  
+  EcalLaserAPDPNRatiosRefMap::const_iterator itref = laserRefMap.find(xid);
+  if ( itref != laserRefMap.end() ) {
+    apdpnref = (*itref);
+  } else { 
+    edm::LogError("EcalLaserDbService") << "error with laserRefMap!" << endl;     
+    return correctionFactor;
+  }
+  
+   EcalLaserAlphaMap::const_iterator italpha = laserAlphaMap.find(xid);
+   if ( italpha != laserAlphaMap.end() ) {
+     alpha = (*italpha);
+   } else {
+     edm::LogError("EcalLaserDbService") << "error with laserAlphaMap!" << endl;     
+     return correctionFactor;
+   }
+
+//   std::cout << " APDPN pair " << apdpnpair.p1 << " , " << apdpnpair.p2 << std::endl; 
+//   std::cout << " TIME pair " << timestamp.t1.value() << " , " << timestamp.t2.value() << " iLM " << iLM << std::endl; 
+//   std::cout << " LM module " << iLM << std::endl;
+//   std::cout << " APDPN ref " << apdpnref << std::endl; 
+  
+  //    std::cout << " ALPHA " << alpha << std::endl; 
+  
+  // should implement some default in case of error...
+  
+  // should do some quality checks first
+  // ...
+  
+  // we will need to treat time differently...
+  // is time in DB same format as in MC?  probably not...
+  
+  // interpolation
+  
+  edm::TimeValue_t t = iTime.value();
+  edm::TimeValue_t t_i = 0, t_f = 0;
+  float p_i = 0, p_f = 0;
+  
+  if ( t >= timestamp.t1.value() && t < timestamp.t2.value() ) {
+    t_i = timestamp.t1.value();
+    t_f = timestamp.t2.value();
+    p_i = apdpnpair.p1;
+    p_f = apdpnpair.p2;
+  } else if ( t >= timestamp.t2.value() && t <= timestamp.t3.value() ) {
+    t_i = timestamp.t2.value();
+    t_f = timestamp.t3.value();
+    p_i = apdpnpair.p2;
+    p_f = apdpnpair.p3;
+  } else if ( t < timestamp.t1.value() ) {
+    t_i = timestamp.t1.value();
+    t_f = timestamp.t2.value();
+    p_i = apdpnpair.p1;
+    p_f = apdpnpair.p2;
+    //edm::LogWarning("EcalLaserDbService") << "The event timestamp t=" << t 
+    //        << " is lower than t1=" << t_i << ". Extrapolating...";
+  } else if ( t > timestamp.t3.value() ) {
+    t_i = timestamp.t2.value();
+    t_f = timestamp.t3.value();
+    p_i = apdpnpair.p2;
+    p_f = apdpnpair.p3;
+    //edm::LogWarning("EcalLaserDbService") << "The event timestamp t=" << t 
+        //        << " is greater than t3=" << t_f << ". Extrapolating...";
+  }
+
+if ( apdpnref != 0 && (t_i - t_f) != 0) {
+  float interpolatedLaserResponse = p_i/apdpnref + (t-t_i)*(p_f-p_i)/apdpnref/(t_f-t_i);
+  if ( interpolatedLaserResponse <= 0 ) {
+          edm::LogError("EcalLaserDbService") << "The interpolated laser correction is <= zero! (" 
+                  << interpolatedLaserResponse << "). Using 1. as correction factor.";
+          return correctionFactor;
+  } else {
+    //correctionFactor = interpolatedLaserResponse;
+    correctionFactor = 1/pow(interpolatedLaserResponse,alpha);
+  }
+  //  std::cout << "correction factor " << correctionFactor << std::endl;
+ } else {
+  edm::LogError("EcalLaserDbService") 
+    << "apdpnref (" << apdpnref << ") "
+    << "or t_i-t_f (" << (t_i - t_f) << " is zero!";
+  return correctionFactor;
+ }
+ 
+ return correctionFactor;
+}
+
+
+pair<float,float>
+NewPi0Dumper::getTransparencyLoss(DetId const & xid, edm::Timestamp const & iTime, bool invertZSide) const
+{
+  //float correctionFactor = 1.0;
+  pair<float,float> correctionFactor(1.,1.); //transparencyLoss, alpha
+
+  if (!mAPDPNRatios_ || !mAPDPNRatiosRef_)
+    {
+      edm::LogError("EcalLaserDbService") << "Laser DB info not found" << endl;
+      return correctionFactor;
+    }
+
+  const EcalLaserAPDPNRatios::EcalLaserAPDPNRatiosMap& laserRatiosMap =  mAPDPNRatios_->getLaserMap();
+  const EcalLaserAPDPNRatios::EcalLaserTimeStampMap& laserTimeMap =  mAPDPNRatios_->getTimeMap();
+  const EcalLaserAPDPNRatiosRefMap& laserRefMap =  mAPDPNRatiosRef_->getMap();
+  const EcalLaserAlphaMap& laserAlphaMap =  mAlphas_->getMap();
+
+  EcalLaserAPDPNRatios::EcalLaserAPDPNpair apdpnpair;
+  EcalLaserAPDPNRatios::EcalLaserTimeStamp timestamp;
+  EcalLaserAPDPNref apdpnref;
+  EcalLaserAlpha alpha;
+
+  if (xid.det()==DetId::Ecal) {
+    //    std::cout << " XID is in Ecal : ";
+  } else {
+    //    std::cout << " XID is NOT in Ecal : ";
+    edm::LogError("EcalLaserDbService") << " DetId is NOT in ECAL" << endl;
+    return correctionFactor;
+  } 
+  
+  int hi = -1;
+  if (xid.subdetId()==EcalBarrel) {
+    //    std::cout << "EcalBarrel" << std::endl;
+    //    std::cout << "--> rawId() = " << xid.rawId() << "   id() = " << EBDetId( xid ).hashedIndex() << std::endl;
+    hi = EBDetId( xid ).hashedIndex();
+  } else if (xid.subdetId()==EcalEndcap) {
+    //    std::cout << "EcalEndcap" << std::endl;
+    hi = EEDetId( xid  ).hashedIndex() + EBDetId::MAX_HASH + 1;
+  } else {
+    //    std::cout << "NOT EcalBarrel or EcalEndCap" << std::endl;
+    edm::LogError("EcalLaserDbService") << " DetId is NOT in ECAL Barrel or Endcap" << endl;
+    return correctionFactor;
+  }
+  
+  int iLM;
+  if (xid.subdetId()==EcalBarrel) {
+    EBDetId ebid( xid.rawId() );
+    iLM = MEEBGeom::lmr(ebid.ieta(), ebid.iphi());
+  } else if (xid.subdetId()==EcalEndcap) {
+    EEDetId eeid( xid.rawId() );
+    // SuperCrystal coordinates
+    MEEEGeom::SuperCrysCoord iX = (eeid.ix()-1)/5 + 1;
+    MEEEGeom::SuperCrysCoord iY = (eeid.iy()-1)/5 + 1;    
+    iLM = MEEEGeom::lmr(iX, iY, eeid.zside());    
+  } else {
+    edm::LogError("EcalLaserDbService") << " DetId is NOT in ECAL Barrel or Endcap" << endl;
+    return correctionFactor;
+  }
+  //  std::cout << " LM num ====> " << iLM << endl;
+  
+  // get alpha, apd/pn ref, apd/pn pairs and timestamps for interpolation
+  DetId myId;
+  if (xid.subdetId()==EcalEndcap && invertZSide)
+    myId=EEDetId(EEDetId(xid).ix(),EEDetId(xid).iy(),-1*EEDetId(xid).zside());
+  else
+    myId=xid;
+
+  EcalLaserAPDPNRatios::EcalLaserAPDPNRatiosMap::const_iterator itratio = laserRatiosMap.find(myId);
+  if (itratio != laserRatiosMap.end()) {
+    apdpnpair = (*itratio);
+  } else {
+    edm::LogError("EcalLaserDbService") << "error with laserRatiosMap!" << endl;     
+    return correctionFactor;
+  }
+  
+  if (iLM-1< (int)laserTimeMap.size()) {
+    timestamp = laserTimeMap[iLM-1];  
+  } else {
+    edm::LogError("EcalLaserDbService") << "error with laserTimeMap!" << endl;     
+    return correctionFactor;
+  }
+  
+  EcalLaserAPDPNRatiosRefMap::const_iterator itref = laserRefMap.find(xid);
+  if ( itref != laserRefMap.end() ) {
+    apdpnref = (*itref);
+  } else { 
+    edm::LogError("EcalLaserDbService") << "error with laserRefMap!" << endl;     
+    return correctionFactor;
+  }
+  
+   EcalLaserAlphaMap::const_iterator italpha = laserAlphaMap.find(xid);
+   if ( italpha != laserAlphaMap.end() ) {
+     alpha = (*italpha);
+   } else {
+     edm::LogError("EcalLaserDbService") << "error with laserAlphaMap!" << endl;     
+     return correctionFactor;
+   }
+
+//   std::cout << " APDPN pair " << apdpnpair.p1 << " , " << apdpnpair.p2 << std::endl; 
+//   std::cout << " TIME pair " << timestamp.t1.value() << " , " << timestamp.t2.value() << " iLM " << iLM << std::endl; 
+//   std::cout << " LM module " << iLM << std::endl;
+//   std::cout << " APDPN ref " << apdpnref << std::endl; 
+  
+  //    std::cout << " ALPHA " << alpha << std::endl; 
+  
+  // should implement some default in case of error...
+  
+  // should do some quality checks first
+  // ...
+  
+  // we will need to treat time differently...
+  // is time in DB same format as in MC?  probably not...
+  
+  // interpolation
+  
+  edm::TimeValue_t t = iTime.value();
+  edm::TimeValue_t t_i = 0, t_f = 0;
+  float p_i = 0, p_f = 0;
+  
+  if ( t >= timestamp.t1.value() && t < timestamp.t2.value() ) {
+    t_i = timestamp.t1.value();
+    t_f = timestamp.t2.value();
+    p_i = apdpnpair.p1;
+    p_f = apdpnpair.p2;
+  } else if ( t >= timestamp.t2.value() && t <= timestamp.t3.value() ) {
+    t_i = timestamp.t2.value();
+    t_f = timestamp.t3.value();
+    p_i = apdpnpair.p2;
+    p_f = apdpnpair.p3;
+  } else if ( t < timestamp.t1.value() ) {
+    t_i = timestamp.t1.value();
+    t_f = timestamp.t2.value();
+    p_i = apdpnpair.p1;
+    p_f = apdpnpair.p2;
+    //edm::LogWarning("EcalLaserDbService") << "The event timestamp t=" << t 
+    //        << " is lower than t1=" << t_i << ". Extrapolating...";
+  } else if ( t > timestamp.t3.value() ) {
+    t_i = timestamp.t2.value();
+    t_f = timestamp.t3.value();
+    p_i = apdpnpair.p2;
+    p_f = apdpnpair.p3;
+    //edm::LogWarning("EcalLaserDbService") << "The event timestamp t=" << t 
+        //        << " is greater than t3=" << t_f << ". Extrapolating...";
+  }
+
+if ( apdpnref != 0 && (t_i - t_f) != 0) {
+  float interpolatedLaserResponse = p_i/apdpnref + (t-t_i)*(p_f-p_i)/apdpnref/(t_f-t_i);
+  if ( interpolatedLaserResponse <= 0 ) {
+          edm::LogError("EcalLaserDbService") << "The interpolated laser correction is <= zero! (" 
+                  << interpolatedLaserResponse << "). Using 1. as correction factor.";
+          return correctionFactor;
+  } else {
+    //correctionFactor = interpolatedLaserResponse;
+    //correctionFactor = 1/pow(interpolatedLaserResponse,alpha);
+    correctionFactor.first = interpolatedLaserResponse;
+    correctionFactor.second = alpha;
+  }
+  //  std::cout << "correction factor " << correctionFactor << std::endl;
+ } else {
+  edm::LogError("EcalLaserDbService") 
+    << "apdpnref (" << apdpnref << ") "
+    << "or t_i-t_f (" << (t_i - t_f) << " is zero!";
+  return correctionFactor;
+ }
+ 
+ return correctionFactor;
+}
+
+void
+NewPi0Dumper::fillPi0Tree(bool useTracks_, bool useHCAL_, TrackIsoVars &tvar, HCALIsoVars &hvar, 
+                          float dclustrk1, float dclustrk2, const reco::Track* trk1, const reco::Track* trk2, 
+                          math::PtEtaPhiMLorentzVector &pi0P4PV,  std::map<size_t,size_t> &savedCluEB,
+                          math::PtEtaPhiMLorentzVector &g1P4PV, math::PtEtaPhiMLorentzVector &g2P4PV,
+                          std::vector< ClusterShape > &shapes,
+                          const CaloCluster* g1, const CaloCluster* g2, int &nClu, int i, int j)
+{
+            massPi0[nPi0] =  pi0P4PV.mass();
+            ePi0[nPi0] =  pi0P4PV.energy();
+            ptPi0[nPi0] =  pi0P4PV.pt();
+            etaPi0[nPi0] =  pi0P4PV.eta();
+            phiPi0[nPi0] =  pi0P4PV.phi();
+
+              ptIso015Pi0[nPi0] =   tvar.ptIso015;
+            ntrkIso015Pi0[nPi0] = tvar.ntrkIso015;
+              ptIso035Pi0[nPi0] =   tvar.ptIso035;
+            ntrkIso035Pi0[nPi0] = tvar.ntrkIso035;
+              ptIso040Pi0[nPi0] =   tvar.ptIso040;
+            ntrkIso040Pi0[nPi0] = tvar.ntrkIso040;
+            hcalIso005Pi0[nPi0] = hvar.hcalIso005;
+            hcalIso010Pi0[nPi0] = hvar.hcalIso010;
+            hcalIso040Pi0[nPi0] = hvar.hcalIso040;
+
+            // 1st daugher index
+            std::map<size_t,size_t>::const_iterator ind = savedCluEB.find( i );
+            if( ind == savedCluEB.end() ) {
+                savedCluEB[ i ]  = nClu;
+                S9Clu[nClu] = g1P4PV.energy();
+                ptClu[nClu] =  g1P4PV.pt();
+                etaClu[nClu] = g1P4PV.eta();
+                phiClu[nClu] = g1P4PV.phi();
+                S1Clu[nClu] =  shapes[i].s1;
+                S4Clu[nClu] =  shapes[i].s4;
+                S25Clu[nClu] = shapes[i].s25;
+                timeClu[nClu] = shapes[i].time;
+                nCryClu[nClu] = shapes[i].ncry9;
+                flagClu[nClu] = shapes[i].flag;
+                distTrkMatchClu[nClu] = dclustrk1;
+                ptTrkMatchClu[nClu] = trk1 ? trk1->pt() : -99.;
+                sMaj9Clu[nClu]  = shapes[i].sMaj9;
+                sMaj25Clu[nClu] = shapes[i].sMaj25;
+                sMaj49Clu[nClu] = shapes[i].sMaj49;
+                sMin9Clu[nClu]  = shapes[i].sMin9;
+                sMin25Clu[nClu] = shapes[i].sMin25;
+                sMin49Clu[nClu] = shapes[i].sMin49;
+                transparencyLossClu[nClu] = shapes[i].transparencyLoss;
+                //transparencyLossCluInvertZSide[nClu] = shapes[i].transparencyLossInvertZSide;
+                laserCorrectionClu[nClu] = shapes[i].laserCorr;
+                laserAlphaClu[nClu] = shapes[i].alpha;
+ 
+                if( g1->seed().subdetId() == EcalBarrel ) 
+                {
+                   EBDetId sid( g1->seed() );
+                   ietaClu[nClu] = sid.ieta();
+                   iphiClu[nClu] = sid.iphi();
+                   iCryClu[nClu] = sid.ic();
+                   iSMClu[nClu] = sid.ism();
+                   imodClu[nClu] = sid.im();
+                   iTTClu[nClu] = sid.tower().iTT();
+                   iTTetaClu[nClu] = sid.tower_ieta();
+                   iTTphiClu[nClu] = sid.tower_iphi();
+                }
+                else if( g1->seed().subdetId() == EcalEndcap ) 
+                {  
+                   EEDetId sid( g1->seed() );
+                   ietaClu[nClu] = sid.ix();
+                   iphiClu[nClu] = sid.iy();
+                   iCryClu[nClu] = sid.ic();
+                   iSMClu[nClu] = sid.iquadrant();
+                   imodClu[nClu] = sid.isc();
+                   iTTClu[nClu] =    -999; //sid.tower().iTT();
+                   iTTetaClu[nClu] = -999; //sid.tower_ieta();
+                   iTTphiClu[nClu] = -999; //sid.tower_iphi();
+                }
+/*
+                EBDetId sid( g1->seed() );
+                ietaClu[nClu] = sid.ieta();
+                iphiClu[nClu] = sid.iphi();
+                iCryClu[nClu] = sid.ic();
+                iSMClu[nClu] = sid.ism();
+                imodClu[nClu] = sid.im();
+                iTTClu[nClu] = sid.tower().iTT();
+                iTTetaClu[nClu] = sid.tower_ieta();
+                iTTphiClu[nClu] = sid.tower_iphi();
+*/
+                
+                nClu++;
+            }
+
+            // 2nd daugher index
+            ind = savedCluEB.find( j );
+            if( ind == savedCluEB.end() ) {
+                savedCluEB[ j ]  = nClu;
+                S9Clu[nClu] = g2P4PV.energy();
+                ptClu[nClu] =  g2P4PV.pt();
+                etaClu[nClu] = g2P4PV.eta();
+                phiClu[nClu] = g2P4PV.phi();
+                S1Clu[nClu] =  shapes[j].s1;
+                S4Clu[nClu] =  shapes[j].s4;
+                S25Clu[nClu] = shapes[j].s25;
+                timeClu[nClu] = shapes[j].time;
+                nCryClu[nClu] = shapes[j].ncry9;
+                flagClu[nClu] = shapes[j].flag;
+                sMaj9Clu[nClu]  = shapes[j].sMaj9;
+                sMaj25Clu[nClu] = shapes[j].sMaj25;
+                sMaj49Clu[nClu] = shapes[j].sMaj49;
+                sMin9Clu[nClu]  = shapes[j].sMin9;
+                sMin25Clu[nClu] = shapes[j].sMin25;
+                sMin49Clu[nClu] = shapes[j].sMin49;
+                transparencyLossClu[nClu] = shapes[i].transparencyLoss;
+                //transparencyLossCluInvertZSide[nClu] = shapes[i].transparencyLossInvertZSide;
+                laserCorrectionClu[nClu] = shapes[i].laserCorr;
+                laserAlphaClu[nClu] = shapes[i].alpha;
+                distTrkMatchClu[nClu] = dclustrk2;
+                ptTrkMatchClu[nClu] = trk2 ? trk2->pt() : -99.;
+
+                if( g2->seed().subdetId() == EcalBarrel ) 
+                {
+                   EBDetId sid( g2->seed() );
+                   ietaClu[nClu] = sid.ieta();
+                   iphiClu[nClu] = sid.iphi();
+                   iCryClu[nClu] = sid.ic();
+                   iSMClu[nClu] = sid.ism();
+                   imodClu[nClu] = sid.im();
+                   iTTClu[nClu] = sid.tower().iTT();
+                   iTTetaClu[nClu] = sid.tower_ieta();
+                   iTTphiClu[nClu] = sid.tower_iphi();
+                }
+                else if( g2->seed().subdetId() == EcalEndcap ) 
+                {
+                   EEDetId sid( g2->seed() );
+                   ietaClu[nClu] = sid.ix();
+                   iphiClu[nClu] = sid.iy();
+                   iCryClu[nClu] = sid.ic();
+                   iSMClu[nClu] = sid.iquadrant();
+                   imodClu[nClu] = sid.isc();
+                   iTTClu[nClu] =    -999; //sid.tower().iTT();
+                   iTTetaClu[nClu] = -999; //sid.tower_ieta();
+                   iTTphiClu[nClu] = -999; //sid.tower_iphi();
+                }
+/*
+                EBDetId sid( g2->seed() );
+                ietaClu[nClu] = sid.ieta();
+                iphiClu[nClu] = sid.iphi();
+                iCryClu[nClu] = sid.ic();
+                iSMClu[nClu] = sid.ism();
+                imodClu[nClu] = sid.im();
+                iTTClu[nClu] = sid.tower().iTT();
+                iTTetaClu[nClu] = sid.tower_ieta();
+                iTTphiClu[nClu] = sid.tower_iphi();
+*/
+                nClu++;
+            }
+
+            indexClu1Pi0[nPi0] = savedCluEB[i];
+            indexClu2Pi0[nPi0] = savedCluEB[j];
+
+            // 1st daughter always with higher energy
+            if(g2P4PV.pt() > g1P4PV.pt()) {
+              indexClu1Pi0[nPi0] = savedCluEB[j];
+              indexClu2Pi0[nPi0] = savedCluEB[i];
+            }
+}
+
+//define this as a plug-in
+DEFINE_FWK_MODULE(NewPi0Dumper);
